@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>LWG • Admin Orders</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    body{color:#e5e7eb;background:#0b1220}
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    .input,.sel,.btn{border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .input{padding:8px;width:100%}
+    .sel{padding:8px}
+    .btn{padding:8px 12px;cursor:pointer}
+    .btn.primary{background:#1d4ed8;border-color:#1e40af}
+    .btn.good{background:#16a34a;border-color:#15803d}
+    .btn.ghost{background:transparent}
+    .btn.danger{background:#b91c1c;border-color:#991b1b}
+    .hdr{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .muted{color:#94a3b8}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:top}
+    th{color:#93c5fd}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #374151;background:#0f172a}
+    .tiny{font-size:12px}
+    details{background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:8px}
+    summary{cursor:pointer;color:#e5e7eb}
+    .pill{padding:2px 8px;border-radius:999px;border:1px solid #374151}
+    .pill.paid{background:#052e1f;border-color:#0b4a34;color:#a7f3d0}
+    .pill.pending{background:#2a2010;border-color:#4b3b1a;color:#fde68a}
+    .pill.failed{background:#2f1010;border-color:#4c1d1d;color:#fecaca}
+    .topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #1f2937;background:#0b1220;margin-bottom:12px}
+    .pagination{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h2 style="margin:0">LWG • Admin Orders</h2>
+    <div class="row">
+      <input id="user" class="input" placeholder="user" style="max-width:140px"/>
+      <input id="pass" class="input" placeholder="pass" type="password" style="max-width:140px"/>
+      <button id="login" class="btn primary">Login</button>
+      <button id="logout" class="btn ghost" title="Clear token">Logout</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Filters -->
+    <div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+      <input id="q" class="input" placeholder="Search ref/name/phone/email" style="max-width:260px"/>
+      <select id="status" class="sel">
+        <option value="">All statuses</option>
+        <option>New</option><option>Processing</option><option>Shipped</option><option>Completed</option><option>Cancelled</option>
+      </select>
+      <select id="pstatus" class="sel">
+        <option value="">All payments</option>
+        <option>Pending</option><option>Paid</option><option>Failed</option>
+      </select>
+      <input id="from" class="input" type="date" title="From"/>
+      <input id="to" class="input" type="date" title="To"/>
+      <button id="load" class="btn">Load</button>
+      <div class="muted tiny" id="totalInfo"></div>
+    </div>
+
+    <div id="out"></div>
+    <div class="pagination" id="pager" style="display:none">
+      <button class="btn ghost" id="prev">Prev</button>
+      <div class="muted tiny" id="pageMeta"></div>
+      <button class="btn ghost" id="next">Next</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var API = 'http://localhost:5001'; // make sure this matches your server origin/port
+
+  function $(s){ return document.querySelector(s); }
+  function iso(d){ try{ return new Date(d).toLocaleString(); }catch(e){ return d; } }
+  function money(n){ return 'NLe ' + Number(n||0).toLocaleString(); }
+  function token(){ return localStorage.getItem('ADMIN_TOKEN') || ''; }
+  function setToken(t){ if(t){ localStorage.setItem('ADMIN_TOKEN', t);} }
+  function clearToken(){ localStorage.removeItem('ADMIN_TOKEN'); }
+  function statusPill(s){
+    var map = {Pending:'pending', Paid:'paid', Failed:'failed'};
+    var cls = map[s] || 'pending';
+    return '<span class="pill '+cls+'">'+(s||'Pending')+'</span>';
+  }
+
+  // Robust fetch that won’t crash on HTML/text responses
+  async function jsonFetch(url, options){
+    const r = await fetch(url, options);
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+
+    if (ct.includes('application/json')){
+      const j = await r.json().catch(()=>null);
+      return { ok: r.ok && !!j && (j.ok !== false), status: r.status, data: j, raw: null };
+    }
+    const txt = await r.text().catch(()=> '');
+    return { ok: r.ok, status: r.status, data: null, raw: txt };
+  }
+
+  // Auth
+  $('#login').onclick = async function(){
+    try{
+      const res = await jsonFetch(API + '/api/admin/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ user: $('#user').value.trim(), pass: $('#pass').value.trim() })
+      });
+      if(!res.ok || !res.data || !res.data.ok){
+        const msg = (res.data && res.data.error) ? res.data.error : ('HTTP '+res.status+' — '+(res.raw||''));
+        throw new Error(msg);
+      }
+      setToken(res.data.token);
+      Swal.fire({icon:'success', title:'Logged in', timer:1200, showConfirmButton:false});
+      load(1);
+    }catch(e){
+      Swal.fire({icon:'error', title:'Login failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+String(e.message||e)+'</pre>'});
+    }
+  };
+  $('#logout').onclick = function(){ clearToken(); Swal.fire({icon:'info', title:'Logged out', timer:1200, showConfirmButton:false}); };
+
+  // Pagination state
+  var state = { page: 1, pageSize: 20, total: 0, lastQuery:'' };
+
+  // Load orders
+  async function load(page){
+    if (page) state.page = page;
+    var qs = new URLSearchParams();
+    var q = $('#q').value.trim();
+    var st = $('#status').value;
+    var pst= $('#pstatus').value;
+    var from = $('#from').value;
+    var to   = $('#to').value;
+
+    if (q) qs.set('q', q);
+    if (st) qs.set('status', st);
+    if (from) qs.set('from', from);
+    if (to) qs.set('to', to);
+    qs.set('page', state.page);
+    qs.set('pageSize', state.pageSize);
+
+    state.lastQuery = qs.toString();
+
+    try{
+      const res = await jsonFetch(API + '/api/admin/orders?' + state.lastQuery, {
+        headers:{ Authorization:'Bearer ' + token() }
+      });
+      if(!res.ok || !res.data || !res.data.ok){
+        if(res.status === 401){
+          clearToken();
+          throw new Error('Unauthorized (401). Please log in again.');
+        }
+        const msg = (res.data && res.data.error) ? res.data.error : ('HTTP '+res.status+' — '+(res.raw||''));
+        throw new Error(msg);
+      }
+      state.total = Number(res.data.total || 0);
+      render(res.data.orders || []);
+      renderPager();
+      $('#totalInfo').textContent = state.total + ' total';
+    }catch(e){
+      $('#out').innerHTML = '<p class="muted">Error: '+ String(e.message||e) +'</p>';
+      $('#pager').style.display = 'none';
+    }
+  }
+  $('#load').onclick = function(){ load(1); };
+
+  function renderPager(){
+    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    if (pages <= 1){ $('#pager').style.display='none'; return; }
+    $('#pager').style.display='flex';
+    $('#pageMeta').textContent = 'Page ' + state.page + ' of ' + pages;
+    $('#prev').disabled = state.page <= 1;
+    $('#next').disabled = state.page >= pages;
+  }
+  $('#prev').onclick = function(){ if(state.page>1) load(state.page-1); };
+  $('#next').onclick = function(){
+    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    if(state.page < pages) load(state.page+1);
+  };
+
+  function itemsList(items){
+    if(!items || !items.length) return '<em class="muted tiny">No items</em>';
+    return '<ul style="margin:6px 0 0 16px">' +
+      items.map(function(i){
+        var t = (i.product && i.product.title) || 'Item';
+        var p = (i.product && i.product.price) || 0;
+        return '<li>'+ t +' × '+ (i.qty||0) +' — '+ money(p) +'</li>';
+      }).join('') +
+    '</ul>';
+  }
+
+  function render(orders){
+    if (!token()){
+      $('#out').innerHTML = '<p class="muted">Login first to view orders.</p>';
+      return;
+    }
+    if (!orders.length){
+      $('#out').innerHTML = '<p class="muted">No orders found for your filters.</p>';
+      return;
+    }
+
+    var rows = orders.map(function(o){
+      var total = o.info ? (o.info.grandTotal || o.info.subtotal || 0) : 0;
+      var contact = o.info ? ((o.info.phone || '') + (o.info.email ? ('<br>'+o.info.email) : '')) : '';
+      var delivery = o.info ? (o.info.deliveryZone || '') : '';
+      var address = o.info ? (o.info.address || '') : '';
+      var payMethod = o.info ? (o.info.payment || '') : '';
+      var proof = o.proofUrl ? ('<a class="btn ghost tiny" href="'+o.proofUrl+'" target="_blank">View Proof</a>') : '<span class="muted tiny">—</span>';
+
+      return (
+        '<tr>' +
+          '<td class="mono" style="min-width:120px">'+ (o.ref||'') +'</td>' +
+          '<td style="min-width:160px">'+ iso(o.createdAt) +'</td>' +
+          '<td style="min-width:180px"><div><b>'+ (o.info && o.info.name ? o.info.name : '') +'</b></div><div class="muted tiny">'+ contact +'</div></td>' +
+          '<td>'+ money(total) +'</td>' +
+          '<td>'+ (o.status || 'New') +'</td>' +
+          '<td>'+ statusPill(o.paymentStatus || 'Pending') +'</td>' +
+          '<td style="min-width:120px">'+ proof +'</td>' +
+          '<td style="min-width:220px">' +
+            '<select class="sel st" data-id="'+o._id+'">' +
+              opt(o.status,'New') + opt(o.status,'Processing') + opt(o.status,'Shipped') + opt(o.status,'Completed') + opt(o.status,'Cancelled') +
+            '</select>' +
+            '<select class="sel pay" data-id="'+o._id+'" style="margin-top:6px">' +
+              opt(o.paymentStatus,'Pending') + opt(o.paymentStatus,'Paid') + opt(o.paymentStatus,'Failed') +
+            '</select>' +
+            '<input class="input note" data-id="'+o._id+'" placeholder="Optional note to customer" style="margin-top:6px"/>' +
+            '<button class="btn good upd" data-id="'+o._id+'" style="margin-top:6px;width:100%">Update</button>' +
+          '</td>' +
+        '</tr>' +
+        '<tr><td colspan="8">' +
+          '<details>' +
+            '<summary>Details</summary>' +
+            '<div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-top:8px">' +
+              '<div style="min-width:260px">' +
+                '<div><b>Payment method:</b> '+ payMethod +'</div>' +
+                '<div><b>Delivery area:</b> '+ delivery + (o.info && (o.info.deliveryFee!=null) ? (' ('+money(o.info.deliveryFee)+')') : '') +'</div>' +
+                '<div><b>Subtotal:</b> '+ (o.info ? money(o.info.subtotal||0) : 'N/A') +'</div>' +
+                '<div><b>Total:</b> <b>'+ money(total) +'</b></div>' +
+              '</div>' +
+              '<div style="min-width:260px"><div><b>Address:</b></div><div class="muted tiny" style="white-space:pre-wrap">'+ address +'</div></div>' +
+            '</div>' +
+            '<div style="margin-top:8px"><b>Items</b>'+ itemsList(o.items) +'</div>' +
+          '</details>' +
+        '</td></tr>'
+      );
+    }).join('');
+
+    $('#out').innerHTML =
+      '<table>' +
+        '<thead><tr>' +
+          '<th>Ref</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th>Payment</th><th>Proof</th><th>Actions</th>' +
+        '</tr></thead>' +
+        '<tbody>'+ rows +'</tbody>' +
+      '</table>';
+
+    // Wire update buttons
+    var buttons = document.querySelectorAll('.upd');
+    for (var i=0;i<buttons.length;i++){
+      buttons[i].addEventListener('click', updateOrder);
+    }
+  }
+
+  function opt(cur, val){ return '<option '+ (cur===val?'selected':'') +'>'+val+'</option>'; }
+
+  async function updateOrder(e){
+    var id  = e.currentTarget.getAttribute('data-id');
+    var st  = document.querySelector('.sel.st[data-id="'+id+'"]').value;
+    var pay = document.querySelector('.sel.pay[data-id="'+id+'"]').value;
+    var note= document.querySelector('.input.note[data-id="'+id+'"]').value;
+
+    // Guard: token present
+    var t = token();
+    if (!t){
+      await Swal.fire({icon:'info', title:'Please log in', text:'Admin token missing.'});
+      return;
+    }
+
+    const res = await jsonFetch(API + '/api/admin/orders/' + encodeURIComponent(id), {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + t },
+      body: JSON.stringify({ status: st, paymentStatus: pay, note: note })
+    });
+
+    if (res.ok && res.data && res.data.ok){
+      await Swal.fire({icon:'success', title:'Order updated', timer:1200, showConfirmButton:false});
+      load(state.page);
+      return;
+    }
+
+    if (res.status === 401){
+      clearToken();
+      await Swal.fire({icon:'error', title:'Unauthorized (401)', text:'Please log in again.'});
+      return;
+    }
+
+    const msg = res.data && res.data.error
+      ? res.data.error
+      : (res.raw ? ('HTTP ' + res.status + ' — ' + res.raw.slice(0,300)) : ('HTTP ' + res.status));
+
+    await Swal.fire({icon:'error', title:'Update failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+msg+'</pre>'});
+  }
+
+  // Auto-load if already logged in
+  if (token()) load(1);
+})();
+</script>
+</body>
+</html>

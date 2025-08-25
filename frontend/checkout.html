@@ -1,0 +1,455 @@
+<!doctype html> 
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Checkout • LWG</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .swal2-popup{ font-family: system-ui, Segoe UI, Roboto, Inter, Arial; }
+    .pay-card{
+      margin-top:10px; padding:12px; border-radius:12px;
+      background:#0b1220; border:1px solid #1f2937; color:#e5e7eb;
+    }
+    .pay-card .row{justify-content:space-between; gap:8px}
+    .copy-btn{
+      border:1px solid #334155; background:transparent; color:#e5e7eb;
+      padding:6px 10px; border-radius:8px; cursor:pointer;
+    }
+    .copy-btn:hover{ filter:brightness(1.1) }
+    .pay-title{ font-weight:700; margin-bottom:6px }
+    .pay-note{ color:#94a3b8; font-size:14px; margin-top:6px }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Checkout</h1>
+    <div class="row" style="align-items:flex-start;gap:28px;flex-wrap:wrap">
+      <form id="form" style="flex:1;min-width:280px">
+        <label class="label">Full name</label>
+        <input class="input" name="name" required>
+
+        <label class="label">Phone / WhatsApp</label>
+        <input class="input" name="phone" placeholder="+2327xxxxxxx" required>
+
+        <label class="label">Email (optional)</label>
+        <input class="input" name="email" type="email" placeholder="you@example.com">
+
+        <label class="label">Delivery Address</label>
+        <textarea class="input" name="address" rows="3" required></textarea>
+
+        <!-- Delivery location (drives fee) -->
+        <label class="label">Delivery Location</label>
+        <select class="input" name="deliveryZone" id="deliveryZone" required>
+          <option value="" disabled selected>Select delivery area</option>
+          <option value="Pick-up (No delivery)">Pick-up (No delivery)</option>
+          <option value="Freetown (Urban)">Freetown (Urban)</option>
+          <option value="Greater Freetown">Greater Freetown</option>
+          <option value="Provinces (Major towns)">Provinces (Major towns)</option>
+          <option value="Provinces (Remote)">Provinces (Remote)</option>
+        </select>
+
+        <label class="label">Payment Method</label>
+        <select class="input" name="payment" id="payment" required>
+          <option value="" disabled selected>Select a payment method</option>
+          <option value="Cash on Delivery">Cash on Delivery</option>
+          <option value="Orange Money">Orange Money</option>
+          <option value="Africell Money">Africell Money</option>
+          <option value="Bank Transfer (UBA)">Bank Transfer (UBA)</option>
+          <option value="Bank Transfer (Rokel Commercial Bank)">Bank Transfer (Rokel Commercial Bank)</option>
+        </select>
+
+        <div id="payInfo" class="pay-card" style="display:none"></div>
+
+        <div class="space"></div>
+        <label class="label">Payment Proof (screenshot/receipt) — optional</label>
+        <input class="input" type="file" name="proof" accept="image/*,application/pdf">
+
+        <div class="space"></div>
+        <button id="submitBtn" class="btn good" type="submit">Place Order</button>
+      </form>
+
+      <div style="flex:1;min-width:300px">
+        <h3>Order Summary</h3>
+        <div id="sum"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // ==========================
+  // Config
+  // ==========================
+  var API_URL = 'http://localhost:5001/api/orders'; // backend endpoint
+  var MAX_PROOF_MB = 5;
+
+  // Delivery fees (NLe)
+  var DELIVERY_ZONES = {
+    'Pick-up (No delivery)': 0,
+    'Freetown (Urban)': 25,
+    'Greater Freetown': 40,
+    'Provinces (Major towns)': 80,
+    'Provinces (Remote)': 120
+  };
+
+  // Payment methods
+  var METHODS = {
+    'Cash on Delivery': {
+      label: 'Cash on Delivery',
+      html: '<div class="pay-note">Pay with cash when your order arrives.</div>'
+    },
+    'Orange Money': {
+      label: 'Orange Money',
+      company: 'LWG Partners Network',
+      wallet: '+23272146015',
+      instruction: 'Dial *144# to send payment, then upload receipt (optional).'
+    },
+    'Africell Money': {
+      label: 'Africell Money',
+      company: 'LWG Partners Network',
+      wallet: '+23230216555',
+      instruction: 'Dial *161# to send payment, then upload receipt (optional).'
+    },
+    'Bank Transfer (UBA)': {
+      label: 'Bank Transfer (UBA)',
+      bank: 'UBA',
+      accountName: 'LWG Partners Network',
+      accountNumber: '540120530380581',
+      branch: 'Freetown Branch'
+    },
+    'Bank Transfer (Rokel Commercial Bank)': {
+      label: 'Bank Transfer (Rokel Commercial Bank)',
+      bank: 'Rokel Commercial Bank',
+      accountName: 'LWG Partners Network',
+      accountNumber: 'REPLACE_WITH_ACCOUNT_NUMBER', /* put real number */
+      branch: 'Freetown Branch'
+    }
+  };
+
+  // ==========================
+  // Local Store (same keys as other pages)
+  // ==========================
+  var LS_PRODUCTS = 'lwg_products';
+  var LS_CART     = 'lwg_cart';
+
+  var Store = {
+    products: function(){
+      try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
+      catch(e){ return []; }
+    },
+    getProduct: function(id){
+      var ps = Store.products();
+      for (var i=0;i<ps.length;i++){ if (ps[i].id === id) return ps[i]; }
+      return null;
+    },
+    cart: function(){
+      try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
+      catch(e){ return []; }
+    },
+    clearCart: function(){ localStorage.setItem(LS_CART, '[]'); }
+  };
+
+  // ==========================
+  // Helpers
+  // ==========================
+  function $(s){ return document.querySelector(s); }
+  function money(n){
+    var num = Number(n||0);
+    try { return 'NLe ' + num.toLocaleString(); }
+    catch(e){ return 'NLe ' + num; }
+  }
+  function Toast(icon, title){
+    return Swal.fire({ toast:true, position:'top-end', icon:icon, title:title, showConfirmButton:false, timer:2000, timerProgressBar:true });
+  }
+
+  function cartItems(){
+    var c = Store.cart();
+    var out = [];
+    for (var i=0;i<c.length;i++){
+      var p = Store.getProduct(c[i].id);
+      if (p) out.push({ id: c[i].id, qty: Number(c[i].qty||0), product: p });
+    }
+    return out;
+  }
+  function itemsTotal(items){
+    var s = 0;
+    for (var i=0;i<items.length;i++){
+      s += Number(items[i].product.price||0) * Number(items[i].qty||0);
+    }
+    return s;
+  }
+  function currentDeliveryFee(){
+    var zone = $('#deliveryZone').value;
+    return DELIVERY_ZONES.hasOwnProperty(zone) ? DELIVERY_ZONES[zone] : 0;
+  }
+
+  // ==========================
+  // Render summary
+  // ==========================
+  var gridSum = $('#sum');
+  function renderSummary(){
+    var items = cartItems();
+    if (!items.length){
+      gridSum.innerHTML = '<p class="muted">Cart is empty.</p>';
+      return;
+    }
+    var rows = '';
+    for (var i=0;i<items.length;i++){
+      rows += '<div class="row" style="justify-content:space-between">' +
+                '<div>' + (items[i].product.title||'') + ' × ' + items[i].qty + '</div>' +
+                '<div>' + money(Number(items[i].product.price||0) * Number(items[i].qty||0)) + '</div>' +
+              '</div>';
+    }
+    var sub = itemsTotal(items);
+    var fee = currentDeliveryFee();
+    var grand = sub + fee;
+    gridSum.innerHTML =
+      rows +
+      '<div class="hr"></div>' +
+      '<div class="row" style="justify-content:space-between"><div>Subtotal</div><div>'+ money(sub) +'</div></div>' +
+      '<div class="row" style="justify-content:space-between"><div>Delivery</div><div>'+ money(fee) +'</div></div>' +
+      '<div class="row" style="justify-content:space-between;font-weight:700"><div>Total</div><div>'+ money(grand) +'</div></div>';
+  }
+  renderSummary();
+  $('#deliveryZone').addEventListener('change', renderSummary);
+
+  // ==========================
+  // Payment info card
+  // ==========================
+  var payInfo = $('#payInfo');
+  $('#payment').addEventListener('change', function(){
+    var key = $('#payment').value;
+    var m = METHODS[key];
+    if (!m){ payInfo.style.display='none'; payInfo.innerHTML=''; return; }
+
+    if (key === 'Cash on Delivery') {
+      payInfo.innerHTML = '<div class="pay-title">'+ m.label +'</div>' + (m.html || '');
+    } else if (key === 'Orange Money' || key === 'Africell Money') {
+      payInfo.innerHTML =
+        '<div class="pay-title">'+ m.label +'</div>' +
+        '<div class="row"><div><b>Company:</b> '+ m.company +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.company +'">Copy</button></div>' +
+        '<div class="row"><div><b>Wallet:</b> '+ m.wallet +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.wallet +'">Copy</button></div>' +
+        (m.instruction ? '<div class="pay-note">'+ m.instruction +'</div>' : '') +
+        '<div class="space"></div><button id="showPayPopup" class="btn ghost">Show details</button>';
+    } else {
+      // Banks
+      payInfo.innerHTML =
+        '<div class="pay-title">'+ m.label +'</div>' +
+        '<div class="row"><div><b>Bank:</b> '+ m.bank +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.bank +'">Copy</button></div>' +
+        '<div class="row"><div><b>Account Name:</b> '+ m.accountName +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.accountName +'">Copy</button></div>' +
+        '<div class="row"><div><b>Account No.:</b> '+ m.accountNumber +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.accountNumber +'">Copy</button></div>' +
+        (m.branch ? '<div class="row"><div><b>Branch:</b> '+ m.branch +'</div>' +
+        '<button class="copy-btn" data-copy="'+ m.branch +'">Copy</button></div>' : '') +
+        '<div class="space"></div><button id="showPayPopup" class="btn ghost">Show details</button>';
+    }
+    payInfo.style.display = 'block';
+
+    // Copy
+    var cbs = payInfo.querySelectorAll('.copy-btn');
+    for (var i=0;i<cbs.length;i++){
+      cbs[i].addEventListener('click', function(e){
+        var val = e.currentTarget.getAttribute('data-copy');
+        navigator.clipboard.writeText(val).then(function(){
+          Toast('success','Copied to clipboard');
+        }).catch(function(){
+          Toast('warning','Copy failed');
+        });
+      });
+    }
+    // Popup
+    var pop = $('#showPayPopup');
+    if (pop){
+      pop.onclick = function(){
+        var html = '';
+        if (key === 'Orange Money' || key === 'Africell Money'){
+          html = '<p><b>Company:</b> '+ m.company +'</p><p><b>Wallet:</b> '+ m.wallet +'</p>' + (m.instruction?('<p>'+m.instruction+'</p>'):'');
+        } else if (key.indexOf('Bank Transfer') === 0){
+          html = '<p><b>Bank:</b> '+ m.bank +'</p><p><b>Account Name:</b> '+ m.accountName +'</p><p><b>Account No.:</b> '+ m.accountNumber +'</p>' + (m.branch?('<p><b>Branch:</b> '+m.branch+'</p>'):'');
+        } else { html = m.html || ''; }
+        Swal.fire({ icon:'info', title:m.label, html:html, confirmButtonText:'OK' });
+      };
+    }
+  });
+
+  // ==========================
+  // Utilities
+  // ==========================
+  function fileToBase64(file){
+    return new Promise(function(resolve,reject){
+      if (!file) return resolve(null);
+      var r = new FileReader();
+      r.onload = function(){ 
+        var dataUrl = String(r.result || '');
+        var comma = dataUrl.indexOf(',');
+        var meta = dataUrl.slice(0, comma);
+        var b64  = dataUrl.slice(comma + 1);
+        var mime = meta.slice(meta.indexOf(':')+1, meta.indexOf(';'));
+        resolve({ base64: b64, mime: mime });
+      };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ==========================
+  // Submit
+  // ==========================
+  $('#form').addEventListener('submit', async function(e){
+    e.preventDefault();
+
+    var items = cartItems();
+    if (!items.length){
+      await Swal.fire({icon:'info', title:'Your cart is empty', text:'Add some products before checking out.'});
+      return;
+    }
+
+    var fd = new FormData(e.target);
+    var data = {};
+    fd.forEach(function(v,k){ data[k] = v; });
+
+    // basic validation
+    if (!String(data.name||'').trim()){
+      await Swal.fire({icon:'warning', title:'Name required', text:'Please enter your full name.'}); return;
+    }
+    if (!/^\+?\d{7,15}$/.test(String(data.phone||'').trim())){
+      await Swal.fire({icon:'warning', title:'Invalid phone', text:'Enter a valid phone/WhatsApp number in international format.'}); return;
+    }
+    if (!data.deliveryZone){
+      await Swal.fire({icon:'warning', title:'Select delivery area', text:'Please select your delivery location.'}); return;
+    }
+    if (!data.payment){
+      await Swal.fire({icon:'warning', title:'Select payment', text:'Choose a payment method to continue.'}); return;
+    }
+
+    var subtotal = itemsTotal(items);
+    var deliveryFee = currentDeliveryFee();
+    var grandTotal  = subtotal + deliveryFee;
+
+    // Payment snapshot (strings only)
+    var m = METHODS[data.payment];
+    var snap = null;
+    if (m){
+      snap = {};
+      for (var k in m){ if (m.hasOwnProperty(k) && typeof m[k] === 'string') snap[k] = m[k]; }
+    }
+
+    // Prepare order payload matching backend schema
+    var orderPayload = {
+      items: items.map(function(i){
+        return {
+          id: i.id,
+          qty: i.qty,
+          product: {
+            title: i.product.title || 'Item',
+            price: Number(i.product.price || 0),
+            image: i.product.image || ''
+          }
+        };
+      }),
+      total: subtotal, // items-only total (backend will recompute too)
+      info: {
+        name: String(data.name||'').trim(),
+        phone: String(data.phone||'').trim(),
+        email: String(data.email||'').trim(),
+        payment: String(data.payment||'').trim(),
+        address: String(data.address||'').trim(),
+        deliveryZone: data.deliveryZone,
+        deliveryFee: deliveryFee,
+        subtotal: subtotal,
+        grandTotal: grandTotal,
+        payment_details: snap || undefined
+      }
+    };
+
+    // Confirm modal
+    var lines = '';
+    for (var i=0;i<items.length;i++){
+      lines += (items[i].product.title||'Item') + ' × ' + items[i].qty + ' — ' + money(Number(items[i].product.price||0)*Number(items[i].qty||0)) + '<br>';
+    }
+    var ok = await Swal.fire({
+      icon: 'question',
+      title: 'Confirm your order?',
+      html:
+        '<div style="text-align:left">' +
+          '<div style="margin-bottom:8px"><b>Name:</b> '+ orderPayload.info.name +'</div>' +
+          '<div style="margin-bottom:8px"><b>Phone:</b> '+ orderPayload.info.phone +'</div>' +
+          '<div style="margin-bottom:8px"><b>Delivery area:</b> '+ orderPayload.info.deliveryZone +'</div>' +
+          '<div style="margin-bottom:8px"><b>Payment:</b> '+ orderPayload.info.payment +'</div>' +
+          '<div style="margin-bottom:8px"><b>Items:</b><br>'+ lines +'</div>' +
+          '<div class="hr" style="height:1px;background:#1f2937;margin:10px 0"></div>' +
+          '<div class="row" style="justify-content:space-between"><div>Subtotal</div><div>'+ money(subtotal) +'</div></div>' +
+          '<div class="row" style="justify-content:space-between"><div>Delivery</div><div>'+ money(deliveryFee) +'</div></div>' +
+          '<div class="row" style="justify-content:space-between;font-weight:700"><div>Total</div><div>'+ money(grandTotal) +'</div></div>' +
+        '</div>',
+      showCancelButton: true,
+      confirmButtonText: 'Place Order',
+      cancelButtonText: 'Review',
+      reverseButtons: true
+    });
+    if (!ok.isConfirmed) return;
+
+    var btn = $('#submitBtn');
+    btn.disabled = true; btn.textContent = 'Placing...';
+    Swal.fire({ title:'Placing your order', html:'Please wait…', allowOutsideClick:false, allowEscapeKey:false, didOpen: function(){ Swal.showLoading(); } });
+
+    try {
+      // Optional proof
+      var proofFile = (new FormData(e.target)).get('proof');
+      var proofPayload = null;
+      if (proofFile && proofFile.size > 0){
+        if (proofFile.size > MAX_PROOF_MB*1024*1024){
+          await Swal.fire({icon:'error', title:'File too large', text:'Payment proof must be ≤ ' + MAX_PROOF_MB + ' MB.'});
+          btn.disabled=false; btn.textContent='Place Order'; return;
+        }
+        var enc = await fileToBase64(proofFile);
+        proofPayload = { filename: proofFile.name, mime: enc.mime, base64: enc.base64 };
+      }
+
+      // Send to backend (schema: { order, proof? })
+      var resp = await fetch(API_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ order: orderPayload, proof: proofPayload })
+      });
+      var json = await resp.json().catch(function(){ return { ok:false, error:'Invalid JSON' }; });
+      if (!resp.ok || !json || json.ok !== true){
+        throw new Error((json && json.error) ? json.error : ('HTTP '+resp.status));
+      }
+
+      // Success -> clear cart and send to Receipt page (PDF download available)
+      Store.clearCart();
+      await Swal.fire({
+        icon:'success',
+        title:'Order placed!',
+        html:'Thank you, <b>'+ orderPayload.info.name +'</b>.<br>Your reference is <b>'+ (json.ref || 'N/A') +'</b>.<br>You can download your receipt next.',
+        confirmButtonText:'Get Receipt'
+      });
+
+      var who = (orderPayload.info.email && orderPayload.info.email.indexOf('@')>-1)
+                ? orderPayload.info.email
+                : orderPayload.info.phone;
+      location.href = 'receipt.html#' + encodeURIComponent(json.ref) + '|' + encodeURIComponent(who);
+
+    } catch (err){
+      console.error('Checkout error:', err);
+      await Swal.fire({icon:'error', title:'Something went wrong', text:String(err && err.message || err || 'Please try again.')});
+    } finally {
+      btn.disabled = false; btn.textContent = 'Place Order';
+    }
+  });
+})();
+
+const API = "http://localhost:5001"; 
+
+</script>
+</body>
+</html>

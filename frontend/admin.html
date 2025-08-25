@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Admin • LWG</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <style>
+    body{color:#e5e7eb;background:#0b1220}
+    .header .btn.ghost{border:1px solid #374151;background:#0f172a;color:#e5e7eb;padding:8px 12px;border-radius:10px;text-decoration:none}
+    .header .btn.active{outline:2px solid #1d4ed8}
+    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;gap:12px}
+    .card{border:1px solid #1f2937;border-radius:16px;overflow:hidden;background:#0b1220}
+    .card img{width:100%;height:180px;object-fit:cover;background:#111827}
+    .card .body{padding:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .hr{border-top:1px solid #1f2937;margin:18px 0}
+    .label{display:block;margin-bottom:6px;color:#9ca3af}
+    .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    textarea.input{min-height:88px}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer}
+    .btn.good{background:#16a34a;border-color:#15803d}
+    .btn.ghost{border:1px solid #374151;background:#0f172a}
+    .btn.danger{background:#b91c1c;border-color:#991b1b}
+    .muted{color:#9ca3af}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:top}
+    .toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #374151;color:#e5e7eb;padding:10px 12px;border-radius:10px;display:none;z-index:50}
+    .space{height:8px}
+    .grid.products{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .subnav a{font-size:14px}
+    .error{color:#fecaca}
+    code.k{background:#111827;border:1px solid #374151;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+<header class="header">
+  <div class="row" style="justify-content:space-between; align-items:center; padding:16px 24px;">
+    <a href="admin.html" style="color:inherit;text-decoration:none"><h2 style="margin:0">LWG Admin</h2></a>
+
+    <!-- MAIN ADMIN NAV -->
+    <nav class="nav" style="gap:10px;display:flex;align-items:center;flex-wrap:wrap">
+      <a href="admin.html" class="btn ghost" data-nav="dashboard">Dashboard</a>
+      <a href="admin-orders.html" class="btn ghost" data-nav="orders">Admin Orders</a>
+      <span class="subnav row" style="margin-left:8px;gap:6px">
+        <a href="#local-orders" class="btn ghost">Local Orders</a>
+      </span>
+      <button id="logout" class="btn ghost" title="Clear admin token" style="margin-left:8px;display:none">Logout</button>
+    </nav>
+  </div>
+</header>
+
+<div class="container">
+  <h1>Admin Dashboard</h1>
+
+  <!-- Login Gate (server + fallback) -->
+  <div id="gate">
+    <p class="muted">Log in to continue. Uses your server’s admin credentials.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div>
+        <label class="label">Username</label>
+        <input id="user" class="input" placeholder="admin"/>
+      </div>
+      <div>
+        <label class="label">Password</label>
+        <input id="pass" class="input" type="password" placeholder="••••••••"/>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <small class="muted">Same credentials as your “Admin Orders” page.</small>
+      <div class="row">
+        <button id="login" class="btn">Unlock</button>
+      </div>
+    </div>
+    <div id="loginErr" class="error" style="margin-top:8px;display:none"></div>
+    <div class="hr"></div>
+    <details>
+      <summary class="muted">If server is unreachable: fallback password</summary>
+      <div class="space"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        <input id="pwd" class="input" type="password" placeholder="Fallback password (local only)" style="max-width:240px"/>
+        <button id="go" class="btn">Unlock (fallback)</button>
+        <small class="muted">Default is <code>admin123</code> (change in the code).</small>
+      </div>
+    </details>
+  </div>
+
+  <div id="panel" style="display:none">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 id="products" style="margin:8px 0">Products</h2>
+      <div class="row">
+        <span class="muted" id="count"></span>
+        <button id="reload" class="btn ghost" title="Reload products">Reload</button>
+        <button id="export" class="btn ghost" title="Export products to JSON">Export</button>
+        <label class="btn ghost" title="Import products from JSON">
+          Import <input id="import" type="file" accept="application/json" style="display:none">
+        </label>
+        <button id="reset" class="btn danger" title="Clear local products">Reset</button>
+      </div>
+    </div>
+
+    <div id="list" class="grid products"></div>
+    <div class="hr"></div>
+
+    <h3>Add / Edit Product</h3>
+    <form id="form" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <input type="hidden" name="id"/>
+      <div>
+        <label class="label">Title</label>
+        <input class="input" name="title" required/>
+      </div>
+      <div>
+        <label class="label">Price (NLe)</label>
+        <input class="input" name="price" type="number" min="0" step="0.01" required/>
+      </div>
+      <div>
+        <label class="label">Stock</label>
+        <input class="input" name="stock" type="number" min="0" step="1" required/>
+      </div>
+      <div style="grid-column:1/-1">
+        <label class="label">Image URL</label>
+        <input class="input" name="image" placeholder="https://..."/>
+      </div>
+      <div style="grid-column:1/-1">
+        <label class="label">Description</label>
+        <textarea class="input" name="desc" rows="3"></textarea>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn good" type="submit">Save Product</button>
+        <button class="btn ghost" type="button" id="cancelEdit" style="display:none">Cancel Edit</button>
+      </div>
+      <small class="muted">After Save, the list above updates instantly. If you don’t see it, press <code class="k">Reload</code>.</small>
+    </form>
+
+    <div class="hr"></div>
+    <h2 id="local-orders">Orders (local)</h2>
+    <p class="muted" style="margin-top:-8px">For live orders, use <a href="admin-orders.html">Admin Orders</a>.</p>
+    <table class="table" id="ordersTable"></table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ====== Settings ======
+  var API = 'http://localhost:5001';
+  var FALLBACK_PASSWORD = 'admin123';
+  var TOKEN_KEY = 'ADMIN_TOKEN';
+
+  // nav highlight
+  (function(){
+    var here = location.pathname.split('/').pop() || 'admin.html';
+    var dashLink = document.querySelector('[data-nav="dashboard"]');
+    if (dashLink && /admin\.html$/i.test(here)) dashLink.classList.add('active');
+  })();
+
+  // ====== Helpers ======
+  function $(sel){ return document.querySelector(sel); }
+  function toast(msg){
+    var el = $('#toast'); if(!el) return alert(msg);
+    el.textContent = String(msg || ''); el.style.display = 'block';
+    setTimeout(function(){ el.style.display='none'; }, 1800);
+  }
+  function money(n){ try{ return 'NLe ' + Number(n||0).toLocaleString(); }catch(e){ return 'NLe ' + (n||0); } }
+  function uuid(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('id-' + Math.random().toString(16).slice(2) + Date.now().toString(16)); }
+  function token(){ return localStorage.getItem(TOKEN_KEY) || ''; }
+  function setToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); }
+  function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
+
+  async function jsonFetch(url, options){
+    const r = await fetch(url, options);
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (ct.includes('application/json')){
+      const j = await r.json().catch(()=>null);
+      return { ok: r.ok && (j && (j.ok !== false || j.token)), status: r.status, data: j, raw: null };
+    }
+    const txt = await r.text().catch(()=> '');
+    return { ok: r.ok, status: r.status, data: null, raw: txt };
+  }
+
+  // ====== Login (server + fallback) ======
+  $('#login').addEventListener('click', async function(){
+    var u = $('#user').value.trim();
+    var p = $('#pass').value.trim();
+    $('#loginErr').style.display = 'none';
+    if (!u || !p){ $('#loginErr').textContent = 'Enter username and password.'; $('#loginErr').style.display='block'; return; }
+    const res = await jsonFetch(API + '/api/admin/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ user:u, pass:p })
+    });
+    if (res.ok && res.data && res.data.token){
+      setToken(res.data.token);
+      showPanel();
+      toast('Logged in');
+      return;
+    }
+    const msg = (res.data && res.data.error) ? res.data.error : ('HTTP ' + res.status + (res.raw? (' — '+res.raw):''));
+    $('#loginErr').textContent = 'Login failed: ' + msg;
+    $('#loginErr').style.display = 'block';
+  });
+  $('#user').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#login').click(); });
+  $('#pass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') $('#login').click(); });
+
+  $('#logout').addEventListener('click', function(){
+    clearToken(); hidePanel(); toast('Logged out');
+  });
+
+  $('#go').addEventListener('click', function(){
+    if ($('#pwd').value === FALLBACK_PASSWORD){ showPanel(); toast('Unlocked (fallback)'); }
+    else toast('Wrong fallback password');
+  });
+
+  function showPanel(){
+    $('#gate').style.display = 'none';
+    $('#panel').style.display = 'block';
+    $('#logout').style.display = 'inline-block';
+    initPanel();
+  }
+  function hidePanel(){
+    $('#panel').style.display = 'none';
+    $('#gate').style.display  = 'block';
+    $('#logout').style.display = 'none';
+  }
+
+  // ====== Store (localStorage, self-healing) ======
+  var LS_PRODUCTS = 'lwg_products';
+  var LS_ORDERS   = 'lwg_orders';
+
+  function safeParse(key, fallback){
+    try { return JSON.parse(localStorage.getItem(key) || ''); }
+    catch(e){
+      console.warn('Corrupt localStorage key', key, '→ resetting');
+      localStorage.setItem(key, JSON.stringify(fallback));
+      return fallback;
+    }
+  }
+
+  var Store = {
+    init: function(){
+      if (!localStorage.getItem(LS_PRODUCTS)) localStorage.setItem(LS_PRODUCTS, '[]');
+      if (!localStorage.getItem(LS_ORDERS))   localStorage.setItem(LS_ORDERS, '[]');
+      // heal if corrupted
+      safeParse(LS_PRODUCTS, []);
+      safeParse(LS_ORDERS,   []);
+    },
+    products: function(){ return safeParse(LS_PRODUCTS, []); },
+    upsertProduct: function(p){
+      var arr = Store.products();
+      var idx = arr.findIndex(x => x.id === p.id);
+      if (idx >= 0) arr[idx] = p; else arr.push(p);
+      localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
+    },
+    deleteProduct: function(id){
+      var arr = Store.products().filter(x => x.id !== id);
+      localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
+    },
+    orders: function(){ return safeParse(LS_ORDERS, []); },
+    setOrderStatus: function(id, status){
+      var arr = Store.orders();
+      for (var i=0;i<arr.length;i++){ if (arr[i].id === id){ arr[i].status = status; break; } }
+      localStorage.setItem(LS_ORDERS, JSON.stringify(arr));
+    }
+  };
+
+  Store.init();
+
+  // seed a sample local order once
+  if (Store.orders().length === 0) {
+    localStorage.setItem(LS_ORDERS, JSON.stringify([{
+      id: 'LWG-' + Math.random().toString(36).slice(2,8).toUpperCase(),
+      at: Date.now(),
+      info: { name: 'Sample Customer', phone: '+23270000000' },
+      items: [{ qty: 1, product: { title: 'Demo Item', price: 50 } }],
+      total: 50,
+      status: 'New'
+    }]));
+  }
+
+  // ====== UI: products ======
+  function productCard(p){
+    var el = document.createElement('div'); el.className = 'card';
+    var img = p.image || '';
+    var safeTitle = String(p.title || '');
+    var safeDesc  = String(p.desc || '');
+    el.innerHTML =
+      '<img src="'+ img +'" alt="'+ safeTitle +'" onerror="this.src=\'https://via.placeholder.com/600x400?text=No+Image\';">' +
+      '<div class="body">' +
+        '<strong>' + safeTitle + '</strong>' +
+        '<div class="row" style="justify-content:space-between">' +
+          '<span class="price">' + money(p.price) + '</span>' +
+          '<span class="muted">Stock: ' + (p.stock || 0) + '</span>' +
+        '</div>' +
+        (safeDesc ? '<div class="muted" style="font-size:12px;margin:6px 0 10px">'+ safeDesc +'</div>' : '') +
+        '<div class="row">' +
+          '<button class="btn ghost edit">Edit</button>' +
+          '<button class="btn danger del">Delete</button>' +
+        '</div>' +
+      '</div>';
+
+    el.querySelector('.del').onclick = function(){
+      if (confirm('Delete product?')){ Store.deleteProduct(p.id); loadProducts(); toast('Deleted'); }
+    };
+    el.querySelector('.edit').onclick = function(){
+      var f = $('#form');
+      f.id.value = p.id;
+      f.title.value = p.title || '';
+      f.price.value = Number(p.price || 0);
+      f.stock.value = Number(p.stock || 0);
+      f.image.value = p.image || '';
+      f.desc.value = p.desc || '';
+      $('#cancelEdit').style.display = 'inline-block';
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    };
+    return el;
+  }
+
+  function loadProducts(){
+    var list = $('#list'); list.innerHTML = '';
+    var ps = Store.products();
+    $('#count').textContent = (ps.length ? ps.length : 0) + ' item' + (ps.length===1?'':'s');
+    if (ps.length === 0){
+      list.innerHTML = '<p class="muted">No products yet. Use the form below to add one.</p>';
+      return;
+    }
+    ps.forEach(p => list.appendChild(productCard(p)));
+  }
+
+  // Controls
+  $('#reload').addEventListener('click', loadProducts);
+  $('#reset').addEventListener('click', function(){
+    if (!confirm('This will clear ALL local products. Continue?')) return;
+    localStorage.setItem(LS_PRODUCTS, '[]');
+    loadProducts(); toast('Local products cleared');
+  });
+  $('#export').addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify(Store.products(), null, 2)], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'products.json'; a.click();
+    URL.revokeObjectURL(url);
+  });
+  $('#import').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      try{
+        var arr = JSON.parse(rd.result);
+        if (!Array.isArray(arr)) throw new Error('JSON must be an array');
+        localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
+        loadProducts();
+        toast('Imported ' + arr.length + ' products');
+      }catch(err){ alert('Import failed: ' + (err.message || err)); }
+    };
+    rd.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ====== Save / Edit form ======
+  $('#form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    var data = {}; fd.forEach((v,k)=> data[k]=v);
+
+    var isEdit = !!data.id;
+    var p = {
+      id: data.id || uuid(),
+      title: String(data.title || '').trim(),
+      price: Number(data.price || 0),
+      stock: Number.isFinite(Number(data.stock)) ? Number(data.stock) : 0,
+      image: String(data.image || '').trim(),
+      desc:  String(data.desc  || '').trim()
+    };
+    if (!p.title){ toast('Title is required'); return; }
+
+    // write + refresh UI immediately
+    Store.upsertProduct(p);
+    loadProducts();                        // 🔄 refresh list NOW
+    e.target.reset();
+    $('#cancelEdit').style.display = 'none';
+    toast(isEdit ? 'Updated' : 'Saved');
+    // optional: scroll to top where the list is
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  $('#cancelEdit').addEventListener('click', function(){
+    $('#form').reset();
+    $('#cancelEdit').style.display = 'none';
+    toast('Edit canceled');
+  });
+
+  // ====== Local orders table ======
+  function renderOrders(){
+    var orders = Store.orders().slice().reverse();
+    var table = $('#ordersTable');
+    if (!orders.length){
+      table.innerHTML = '<tr><td class="muted">No orders yet.</td></tr>';
+      return;
+    }
+    var header =
+      '<thead><tr>' +
+        '<th>Ref</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th>' +
+      '</tr></thead>';
+    var rows = orders.map(function(o){
+      var itemsStr = (o.items || []).map(function(i){
+        var t = (i.product && i.product.title) ? i.product.title : 'Item';
+        return t + ' × ' + (i.qty || 0);
+      }).join(', ');
+      var date = (new Date(o.at)).toLocaleString();
+      var name = (o.info && o.info.name) ? o.info.name : '';
+      var ph   = (o.info && o.info.phone) ? o.info.phone : '';
+      return (
+        '<tr>' +
+          '<td>' + (o.id || '') + '</td>' +
+          '<td>' + date + '</td>' +
+          '<td><div><strong>' + name + '</strong></div><div class="muted">' + ph + '</div></td>' +
+          '<td>' + itemsStr + '</td>' +
+          '<td>' + money(o.total) + '</td>' +
+          '<td>' + (o.status || 'New') + '</td>' +
+          '<td>' +
+            '<button class="btn good act" data-id="' + (o.id || '') + '" data-status="Completed">Completed</button> ' +
+            '<button class="btn ghost act" data-id="' + (o.id || '') + '" data-status="Processing">Processing</button>' +
+          '</td>' +
+        '</tr>'
+      );
+    }).join('');
+    table.innerHTML = header + '<tbody>' + rows + '</tbody>';
+
+    var acts = table.querySelectorAll('.act');
+    for (var i=0;i<acts.length;i++){
+      acts[i].addEventListener('click', function(e){
+        var id = e.currentTarget.getAttribute('data-id');
+        var status = e.currentTarget.getAttribute('data-status');
+        Store.setOrderStatus(id, status);
+        renderOrders();
+        toast('Order ' + id + ' → ' + status);
+      });
+    }
+  }
+
+  function initPanel(){
+    loadProducts();
+    renderOrders();
+  }
+
+  // auto-unlock if token exists
+  if (token()) { showPanel(); } else { hidePanel(); }
+})();
+</script>
+</body>
+</html>

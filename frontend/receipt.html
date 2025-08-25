@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Receipt • LWG</title>
+
+  <!-- prevent caching -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <link rel="stylesheet" href="css/styles.css"/>
+  <style>
+    body{background:#0b1220;color:#e5e7eb}
+    .card{max-width:860px;margin:24px auto;background:#0b1220;border:1px solid #1f2937;border-radius:16px;padding:18px}
+    .row{display:flex;gap:12px;margin:6px 0;flex-wrap:wrap;align-items:center}
+    .items li{margin:4px 0}
+    .muted{color:#94a3b8}
+    .input{padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer}
+    .btn.good{background:#16a34a;border-color:#15803d}
+    .btn.ghost{background:#0f172a;border:1px solid #374151}
+    .timer{font-size:12px}
+    .grow{flex:1;min-width:220px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Order Receipt</h2>
+    <p class="muted">Enter your <b>reference</b> and either your <b>phone</b> or <b>email</b> to view & download your receipt.</p>
+
+    <form id="rcpt-form" class="row" novalidate>
+      <input id="ref" name="ref" class="input grow" placeholder="LWG-ABC123" autocomplete="off" required>
+      <input id="who" name="who" class="input grow" placeholder="+232… or name@example.com" autocomplete="off" required>
+      <button type="submit" class="btn">Find</button>
+      <a id="dl" class="btn good" href="#" download style="display:none">Download PDF</a>
+      <button id="close" type="button" class="btn ghost" style="display:none">Close now</button>
+    </form>
+
+    <div id="out" style="margin-top:12px"></div>
+    <div id="timer" class="muted timer" style="display:none;margin-top:6px"></div>
+  </div>
+
+<script type="module">
+const API = 'http://localhost:5001';          // change in prod
+const AUTO_HIDE_MS = 7000;
+
+const $ = s => document.querySelector(s);
+const money = n => 'NLe ' + Number(n||0).toLocaleString();
+const isEmail = v => /\S+@\S+\.\S+/.test(v);
+const normalizePhone = v => '+' + (v.replace(/[^\d+]/g,'').replace(/^\+?/,''));
+
+let hideTimer = null;
+let tickTimer = null;
+
+/* stop timers + clear output, but KEEP inputs */
+function resetTransient(){
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  $('#out').innerHTML = '';
+  $('#timer').style.display = 'none';
+  $('#timer').textContent = '';
+  const dl = $('#dl'); dl.style.display = 'none'; dl.href = '#';
+  $('#close').style.display = 'none';
+}
+
+/* full clear (used by auto-hide & manual Close) */
+function clearAll(){
+  resetTransient();
+  $('#ref').value = '';
+  $('#who').value = '';
+  if (location.hash || location.search) history.replaceState(null, '', location.pathname);
+}
+
+function startAutoHide(){
+  const started = Date.now();
+  $('#timer').style.display = 'block';
+
+  tickTimer = setInterval(() => {
+    const left = Math.max(0, AUTO_HIDE_MS - (Date.now() - started));
+    $('#timer').textContent = 'This page will clear in ' + Math.ceil(left/1000) + 's.';
+    if (left <= 0) { clearInterval(tickTimer); tickTimer = null; }
+  }, 250);
+
+  hideTimer = setTimeout(() => {
+    clearAll();
+    $('#out').innerHTML = '<p class="muted">Receipt cleared.</p>';
+  }, AUTO_HIDE_MS);
+
+  $('#close').style.display = 'inline-flex';
+}
+
+function render(o){
+  const items = (o.items||[]).map(i =>
+    `<li>${i.product.title} × ${i.qty} — ${money(i.product.price)}</li>`).join('');
+  $('#out').innerHTML = `
+    <div class="row"><div><b>Reference</b></div><div>${o.ref}</div></div>
+    <div class="row"><div><b>Date</b></div><div>${new Date(o.createdAt).toLocaleString()}</div></div>
+    <div class="row"><div><b>Status</b></div><div>${o.status}</div></div>
+    <div class="row"><div><b>Payment</b></div><div>${o.paymentStatus}</div></div>
+    <div class="row"><div><b>Name</b></div><div>${o.info?.name||''}</div></div>
+    <div class="row"><div><b>Delivery</b></div><div>${o.info?.deliveryZone||''}</div></div>
+    <div class="row"><div><b>Total</b></div><div><b>${money(o.info?.grandTotal ?? o.info?.subtotal ?? 0)}</b></div></div>
+    <div style="margin-top:8px"><b>Items</b><ul class="items">${items}</ul></div>
+  `;
+}
+
+async function fetchOrder(ref, whoRaw){
+  const who = whoRaw.trim();
+  const qs = new URLSearchParams({ ref });
+
+  if (isEmail(who)) qs.set('email', who);
+  else qs.set('phone', normalizePhone(who));
+
+  const r = await fetch(`${API}/api/orders/track?${qs}`, { cache:'no-store' });
+  const j = await r.json().catch(()=>({ok:false,error:'Invalid JSON'}));
+  if (!r.ok || !j.ok) throw new Error(j.error || r.status);
+  return { order: j.order, qs };
+}
+
+/* SUBMIT — now reads values FIRST, then resets transient UI */
+$('#rcpt-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const ref = $('#ref').value.trim();
+    const who = $('#who').value.trim();
+    if (!ref || !who) throw new Error('Enter both fields');
+
+    resetTransient(); // clear old result/timers, keep inputs
+
+    const { order, qs } = await fetchOrder(ref, who);
+    render(order);
+
+    const dl = $('#dl');
+    dl.href = `${API}/api/orders/receipt.pdf?${qs}`;
+    dl.style.display = 'inline-flex';
+
+    history.replaceState(null, '', location.pathname); // strip any hash/query
+    startAutoHide();
+  } catch (e2) {
+    $('#out').innerHTML = `<p class="muted">Error: ${String(e2.message||e2)}</p>`;
+  }
+});
+
+/* manual close */
+$('#close').addEventListener('click', clearAll);
+
+/* clear if restored from bfcache */
+window.addEventListener('pageshow', (e) => { if (e.persisted) clearAll(); });
+
+/* clear on history nav */
+window.addEventListener('popstate', clearAll);
+
+/* deep link: receipt.html#LWG-XXX|+2327..orEmail */
+(function bootFromHash(){
+  if (location.hash.includes('|')) {
+    const [ref, who] = decodeURIComponent(location.hash.slice(1)).split('|');
+    $('#ref').value = (ref||'').trim();
+    $('#who').value = (who||'').trim();
+    history.replaceState(null, '', location.pathname);
+    $('#rcpt-form').dispatchEvent(new Event('submit', {cancelable:true}));
+  }
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Track Order • LWG</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    .card{max-width:760px;margin:24px auto;background:#0b1220;border:1px solid #1f2937;border-radius:16px;padding:18px;color:#e5e7eb}
+    .row{display:flex;justify-content:space-between;gap:12px;margin:6px 0}
+    .items li{margin:4px 0}
+    .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;background:#6b7280}
+    .status-dot.active{background:#22c55e}
+    .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer}
+    .btn.primary{background:#1d4ed8;border-color:#1e40af}
+    .grid{display:grid;gap:12px}
+    @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Track your order</h2>
+    <p>Enter your reference and the phone or email you used.</p>
+    <div class="grid">
+      <div><label>Reference</label><input id="ref" class="input" placeholder="e.g. LWG-ABC123"/></div>
+      <div><label>Phone (E.164) or Email</label><input id="contact" class="input" placeholder="+232... or name@example.com"/></div>
+    </div>
+    <div style="margin-top:12px"><button id="go" class="btn primary">Track</button></div>
+  </div>
+
+  <div id="result" class="card" style="display:none"></div>
+
+<script>
+(function(){
+  // --- Config ---
+  var API = 'http://localhost:5001';
+
+  // --- Helpers ---
+  function $(s){ return document.querySelector(s); }
+  function formatMoney(n){
+    var num = Number(n||0);
+    try { return 'NLe ' + num.toLocaleString(); }
+    catch(e){ return 'NLe ' + num; }
+  }
+  function iso(d){
+    try { return new Date(d).toLocaleString(); }
+    catch(e){ return d; }
+  }
+  function get(obj, path, fallback){
+    var parts = path.split('.');
+    var cur = obj;
+    for (var i=0;i<parts.length;i++){
+      if (cur == null || typeof cur !== 'object') return fallback;
+      cur = cur[parts[i]];
+    }
+    return (cur == null ? fallback : cur);
+  }
+  function renderStatus(status){
+    var steps = ['New','Processing','Shipped','Completed','Cancelled'];
+    var out = '<div>';
+    for (var i=0;i<steps.length;i++){
+      var s = steps[i];
+      out += '<span class="status-dot' + (s===status?' active':'') + '"></span>' + s;
+      if (i < steps.length-1) out += ' · ';
+    }
+    out += '</div>';
+    return out;
+  }
+
+  // --- Main ---
+  async function track(){
+    var ref = $('#ref').value.trim();
+    var contact = $('#contact').value.trim();
+    if(!ref || !contact){
+      return Swal.fire({icon:'info', title:'Enter both fields'});
+    }
+
+    var qs = new URLSearchParams();
+    qs.set('ref', ref);
+    if (contact.indexOf('@') !== -1) qs.set('email', contact); else qs.set('phone', contact);
+
+    var resp;
+    try {
+      resp = await fetch(API + '/api/orders/track?' + qs.toString());
+    } catch(e){
+      return Swal.fire({icon:'error', title:'Network error', text:String(e)});
+    }
+
+    var data;
+    try {
+      data = await resp.json();
+    } catch(e){
+      return Swal.fire({icon:'error', title:'Invalid server response'});
+    }
+
+    if (!resp.ok || !data || data.ok !== true){
+      var msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+      return Swal.fire({icon:'error', title:'Not found', text: msg});
+    }
+
+    var o = data.order || {};
+    var itemsArr = Array.isArray(o.items) ? o.items : [];
+    var itemsHTML = itemsArr.map(function(x){
+      var title = get(x, 'product.title', 'Item');
+      var price = get(x, 'product.price', 0);
+      var qty = x && x.qty ? x.qty : 0;
+      return '<li>' + title + ' × ' + qty + ' — ' + formatMoney(price) + '</li>';
+    }).join('');
+
+    var total = get(o, 'info.grandTotal', get(o, 'info.subtotal', 0));
+    var cust = get(o, 'info.name', '');
+    var contactOut = get(o, 'info.phone', get(o, 'info.email', ''));
+    var zone = get(o, 'info.deliveryZone', '');
+
+    var html =
+      '<h3>Order ' + (o.ref || '') + '</h3>' +
+      '<div class="row"><div><b>Date</b></div><div>' + iso(o.createdAt) + '</div></div>' +
+      '<div class="row"><div><b>Status</b></div><div>' + renderStatus(o.status) + '</div></div>' +
+      '<div class="row"><div><b>Payment</b></div><div>' + (o.paymentStatus || '') + '</div></div>' +
+      '<div class="row"><div><b>Customer</b></div><div>' + cust + '</div></div>' +
+      '<div class="row"><div><b>Contact</b></div><div>' + contactOut + '</div></div>' +
+      '<div class="row"><div><b>Delivery</b></div><div>' + zone + '</div></div>' +
+      '<div class="row"><div><b>Total</b></div><div><b>' + formatMoney(total) + '</b></div></div>' +
+      '<div style="margin-top:10px"><b>Items</b><ul class="items">' + itemsHTML + '</ul></div>';
+
+    var result = $('#result');
+    result.innerHTML = html;
+    result.style.display = 'block';
+  }
+
+  $('#go').onclick = track;
+})();
+</script>
+</body>
+</html>

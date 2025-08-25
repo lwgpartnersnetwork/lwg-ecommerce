@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Cart • LWG</title>
+  <link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+  <!-- Single header (no duplicates) -->
+  <header class="header">
+    <div class="row" style="justify-content:space-between; align-items:center; padding:16px 24px;">
+      <a href="index.html"><h2 style="margin:0">LWG Store</h2></a>
+      <nav class="nav" style="gap:16px">
+        <a href="index.html">Home</a>
+        <a href="cart.html">Cart (<span id="cartCount">0</span>)</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1>Your Cart</h1>
+    <table class="table" id="table"></table>
+
+    <div class="row" style="justify-content:flex-end;margin-top:16px;gap:10px">
+      <a class="btn ghost" href="index.html">Continue Shopping</a>
+      <a class="btn good" id="toCheckout" href="checkout.html">Checkout</a>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  // ==========================
+  // Shared storage keys (match Admin/Store pages)
+  // ==========================
+  var LS_PRODUCTS = 'lwg_products';
+  var LS_CART     = 'lwg_cart';
+
+  // ==========================
+  // Tiny Store (no modules)
+  // ==========================
+  var Store = {
+    products: function(){
+      try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
+      catch(e){ return []; }
+    },
+    getProduct: function(id){
+      var ps = Store.products();
+      for (var i=0;i<ps.length;i++){ if (ps[i].id === id) return ps[i]; }
+      return null;
+    },
+    cart: function(){
+      try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
+      catch(e){ return []; }
+    },
+    saveCart: function(arr){
+      localStorage.setItem(LS_CART, JSON.stringify(arr || []));
+    },
+    updateQty: function(id, qty){
+      var cart = Store.cart();
+      var found = false;
+      for (var i=0;i<cart.length;i++){
+        if (cart[i].id === id){
+          found = true;
+          if (qty <= 0) { cart.splice(i,1); break; }
+          cart[i].qty = qty;
+          break;
+        }
+      }
+      if (!found && qty > 0){
+        cart.push({ id:id, qty:qty });
+      }
+      Store.saveCart(cart);
+    }
+  };
+
+  // ==========================
+  // Helpers
+  // ==========================
+  function $(s){ return document.querySelector(s); }
+  function toast(msg){
+    var el = $('#toast'); if (!el) return alert(msg);
+    el.textContent = String(msg || '');
+    el.classList.add('show');
+    setTimeout(function(){ el.classList.remove('show'); }, 1500);
+  }
+  function money(n){
+    var num = Number(n || 0);
+    try { return 'NLe ' + num.toLocaleString(); }
+    catch(e){ return 'NLe ' + num; }
+  }
+  function updateCartCount(){
+    var c = Store.cart().reduce(function(s,i){ return s + Number(i.qty||0); }, 0);
+    var el = $('#cartCount'); if (el) el.textContent = c;
+  }
+
+  // ==========================
+  // Quantity clamping
+  // ==========================
+  var RESPECT_STOCK = false; // set to true if you want to cap by product.stock
+  var MAX_QTY = 999;
+
+  function clampQty(qty, product){
+    var q = (isFinite(+qty) && +qty > 0) ? Math.floor(+qty) : 1;
+    if (RESPECT_STOCK && product && isFinite(+product.stock)){
+      q = Math.min(q, Math.max(1, +product.stock));
+    } else {
+      q = Math.min(q, MAX_QTY);
+    }
+    return q;
+  }
+
+  // ==========================
+  // Render
+  // ==========================
+  var table = $('#table');
+  var btnCheckout = $('#toCheckout');
+
+  function render(){
+    var cart = Store.cart();
+
+    // Remove dead items (product deleted)
+    var changed = false;
+    for (var i = cart.length - 1; i >= 0; i--){
+      if (!Store.getProduct(cart[i].id)){
+        cart.splice(i,1);
+        changed = true;
+      }
+    }
+    if (changed) Store.saveCart(cart);
+
+    if (!cart.length){
+      table.innerHTML =
+        '<thead>' +
+          '<tr><th></th><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr>' +
+        '</thead>' +
+        '<tbody>' +
+          '<tr><td colspan="6" class="muted">Your cart is empty.</td></tr>' +
+        '</tbody>' +
+        '<tfoot>' +
+          '<tr><th colspan="4" style="text-align:right">Total</th><th>'+money(0)+'</th><th></th></tr>' +
+        '</tfoot>';
+      btnCheckout.style.display = 'none';
+      updateCartCount();
+      return;
+    }
+
+    var rows = cart.map(function(item){
+      var p = Store.getProduct(item.id);
+      if (!p) return '';
+
+      var qty = clampQty(item.qty, p);
+      if (qty !== item.qty) { Store.updateQty(item.id, qty); }
+      var line = Number(p.price || 0) * qty;
+
+      return (
+        '<tr data-id="'+ item.id +'">' +
+          '<td style="width:60px"><img src="'+ (p.image||'') +'" alt="'+ (p.title||'') +'" style="width:56px;height:56px;object-fit:cover;border-radius:8px"></td>' +
+          '<td>'+ (p.title||'') +'</td>' +
+          '<td>'+ money(p.price) +'</td>' +
+          '<td>' +
+            '<div class="row" style="gap:6px">' +
+              '<button class="btn ghost dec" aria-label="Decrease quantity">−</button>' +
+              '<input type="number" min="1" value="'+ qty +'" class="input qty" style="width:90px;text-align:center">' +
+              '<button class="btn ghost inc" aria-label="Increase quantity">+</button>' +
+            '</div>' +
+          '</td>' +
+          '<td class="lineTotal">'+ money(line) +'</td>' +
+          '<td><button class="btn danger rm">Remove</button></td>' +
+        '</tr>'
+      );
+    }).join('');
+
+    var total = Store.cart().reduce(function(s,i){
+      var p = Store.getProduct(i.id);
+      return p ? s + Number(p.price||0) * Number(i.qty||0) : s;
+    }, 0);
+
+    table.innerHTML =
+      '<thead>' +
+        '<tr><th></th><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr>' +
+      '</thead>' +
+      '<tbody>' + (rows || '<tr><td colspan="6" class="muted">Your cart is empty.</td></tr>') + '</tbody>' +
+      '<tfoot>' +
+        '<tr><th colspan="4" style="text-align:right">Total</th><th id="grandTotal">'+ money(total) +'</th><th></th></tr>' +
+      '</tfoot>';
+
+    // Wire up row actions
+    var trs = table.querySelectorAll('tr[data-id]');
+    for (var k=0; k<trs.length; k++){
+      (function(tr){
+        var id = tr.getAttribute('data-id');
+        var p = Store.getProduct(id);
+        if (!p) return;
+
+        var qtyInput = tr.querySelector('.qty');
+        var btnDec = tr.querySelector('.dec');
+        var btnInc = tr.querySelector('.inc');
+        var btnRm  = tr.querySelector('.rm');
+
+        function recalcAndPaint(nextQty){
+          var clamped = clampQty(nextQty, p);
+          Store.updateQty(id, clamped);
+          if (clamped <= 0){
+            render(); return;
+          }
+          qtyInput.value = clamped;
+          tr.querySelector('.lineTotal').textContent = money(Number(p.price||0) * clamped);
+          var newTotal = Store.cart().reduce(function(s,i){
+            var pi = Store.getProduct(i.id);
+            return pi ? s + Number(pi.price||0) * Number(i.qty||0) : s;
+          }, 0);
+          $('#grandTotal').textContent = money(newTotal);
+          updateCartCount();
+        }
+
+        qtyInput.addEventListener('change', function(e){
+          var val = parseInt(e.target.value || '1', 10);
+          recalcAndPaint(val);
+        });
+        qtyInput.addEventListener('input', function(e){
+          if (+e.target.value < 1) e.target.value = 1;
+        });
+
+        btnDec.addEventListener('click', function(){ recalcAndPaint(+qtyInput.value - 1); });
+        btnInc.addEventListener('click', function(){ recalcAndPaint(+qtyInput.value + 1); });
+        btnRm.addEventListener('click', function(){
+          Store.updateQty(id, 0);
+          toast('Removed from cart');
+          render();
+        });
+      })(trs[k]);
+    }
+
+    btnCheckout.style.display = Store.cart().length ? 'inline-flex' : 'none';
+    updateCartCount();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

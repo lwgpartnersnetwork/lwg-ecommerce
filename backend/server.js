@@ -897,10 +897,11 @@ app.get('/api/orders/receipt.pdf', async (req, res) => {
   }
 });
 
-
-app.listen(process.env.PORT || 5001, () => {
-  console.log(`✔ API running on port ${process.env.PORT || 5001}`);
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => {
+  console.log(`✔ API running on port ${PORT}`);
 });
+
 
 
 /* =========================

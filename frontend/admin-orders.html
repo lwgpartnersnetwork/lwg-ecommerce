@@ -17,14 +17,12 @@
     .btn.good{background:#16a34a;border-color:#15803d}
     .btn.ghost{background:transparent}
     .btn.danger{background:#b91c1c;border-color:#991b1b}
-    .hdr{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
     .row{display:flex;gap:8px;align-items:center}
     .muted{color:#94a3b8}
     table{width:100%;border-collapse:collapse}
     th,td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:top}
     th{color:#93c5fd}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace}
-    .badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #374151;background:#0f172a}
     .tiny{font-size:12px}
     details{background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:8px}
     summary{cursor:pointer;color:#e5e7eb}
@@ -95,20 +93,19 @@
     return '<span class="pill '+cls+'">'+(s||'Pending')+'</span>';
   }
 
-  // Robust fetch that won’t crash on HTML/text responses
   async function jsonFetch(url, options){
     const r = await fetch(url, options);
     const ct = (r.headers.get('content-type') || '').toLowerCase();
 
     if (ct.includes('application/json')){
       const j = await r.json().catch(()=>null);
-      return { ok: r.ok && !!j && (j.ok !== false), status: r.status, data: j, raw: null };
+      return { ok: r.ok && !!j && (j.ok !== false || j.token), status: r.status, data: j, raw: null };
     }
     const txt = await r.text().catch(()=> '');
     return { ok: r.ok, status: r.status, data: null, raw: txt };
   }
 
-  // Auth: server login
+  // Login (server)
   $('#login').onclick = async function(){
     try{
       const res = await jsonFetch(API + '/api/admin/login', {
@@ -128,14 +125,13 @@
     }
   };
 
-  // Auth: demo login (client-only token)
+  // Demo unlock (client-only)
   $('#demo').onclick = function(){
     const u = $('#user').value.trim() || DEMO_USER;
     const p = $('#pass').value.trim() || DEMO_PASS;
     if (u === DEMO_USER && p === DEMO_PASS){
-      setToken('DEMO_TOKEN'); // note: server will reject protected actions with this
-      Swal.fire({icon:'success', title:'Demo unlocked', text:'This lets you view the UI. Use real server login for updates/email.', timer:1800, showConfirmButton:false});
-      // You can still load; server endpoints that require real token may 401
+      setToken('DEMO_TOKEN');
+      Swal.fire({icon:'success', title:'Demo unlocked', text:'Use real server login for updates/email.', timer:1800, showConfirmButton:false});
       load(1);
     } else {
       Swal.fire({icon:'info', title:'Use admin / admin123 for demo'});
@@ -147,7 +143,6 @@
   // Pagination state
   var state = { page: 1, pageSize: 20, total: 0, lastQuery:'' };
 
-  // Load orders
   async function load(page){
     if (page) state.page = page;
     var qs = new URLSearchParams();
@@ -281,11 +276,7 @@
         '<tbody>'+ rows +'</tbody>' +
       '</table>';
 
-    // Wire update buttons
-    var buttons = document.querySelectorAll('.upd');
-    for (var i=0;i<buttons.length;i++){
-      buttons[i].addEventListener('click', updateOrder);
-    }
+    document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', updateOrder));
   }
 
   async function updateOrder(e){
@@ -294,7 +285,6 @@
     var pay = document.querySelector('.sel.pay[data-id="'+id+'"]').value;
     var note= document.querySelector('.input.note[data-id="'+id+'"]').value;
 
-    // Guard: token present
     var t = token();
     if (!t){
       await Swal.fire({icon:'info', title:'Please log in', text:'Admin token missing.'});
@@ -326,7 +316,6 @@
     await Swal.fire({icon:'error', title:'Update failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+msg+'</pre>'});
   }
 
-  // Auto-load if already logged in
   if (token()) load(1);
 })();
 </script>

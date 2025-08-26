@@ -127,7 +127,7 @@ console.log('[ENV CHECK]',
    MONGO (Orders)
    ========================= */
 if (!MONGO_URI) {
-  console.warn('⚠  MONGO_URI not set. Orders will fail to persist.');
+  console.warn('⚠️  MONGO_URI not set. Orders will fail to persist.');
 } else {
   mongoose.connect(MONGO_URI).then(() => {
     console.log('MongoDB connected');
@@ -175,7 +175,7 @@ mailer.verify((err) => {
     console.error('SMTP VERIFY FAIL:', (err && err.message) || err);
     console.error('Hint: 2-Step ON + 16-char App Password, or run DisplayUnlockCaptcha');
   } else {
-    console.log(SMTP OK (${SMTP_PORT} ${Number(SMTP_PORT) === 465 ? 'SSL' : 'TLS'}));
+    console.log(`SMTP OK (${SMTP_PORT} ${Number(SMTP_PORT) === 465 ? 'SSL' : 'TLS'})`);
   }
 });
 
@@ -187,10 +187,10 @@ const WAPI_VERSION = 'v23.0';
 async function sendWhatsAppText({ to, text }) {
   if (!to || !WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) return;
   const phoneId = String(WHATSAPP_PHONE_ID).replace(/[^\d]/g, '');
-  const url = https://graph.facebook.com/${WAPI_VERSION}/${phoneId}/messages;
+  const url = `https://graph.facebook.com/${WAPI_VERSION}/${phoneId}/messages`;
   const r = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: Bearer ${WHATSAPP_TOKEN}, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to,
@@ -207,10 +207,10 @@ async function sendWhatsAppText({ to, text }) {
 async function sendWhatsAppTemplate({ to, template, lang = WA_LANG, components = [] }) {
   if (!to || !WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID || !template) return false;
   const phoneId = String(WHATSAPP_PHONE_ID).replace(/[^\d]/g, '');
-  const url = https://graph.facebook.com/${WAPI_VERSION}/${phoneId}/messages;
+  const url = `https://graph.facebook.com/${WAPI_VERSION}/${phoneId}/messages`;
   const r = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: Bearer ${WHATSAPP_TOKEN}, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to,
@@ -239,8 +239,8 @@ const DELIVERY_ZONES = {
 const feeFromZone = (z) => DELIVERY_ZONES[z] ?? 0;
 
 const esc = (s='') => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-const kvBlock = (obj) => Object.entries(obj).map(([k,v]) => - ${k}: ${v}).join('\n');
-const kvHTML  = (obj) => <ul style="margin-top:6px">${Object.entries(obj).map(([k,v])=><li><b>${esc(k)}:</b> ${esc(v)}</li>).join('')}</ul>;
+const kvBlock = (obj) => Object.entries(obj).map(([k,v]) => `- ${k}: ${v}`).join('\n');
+const kvHTML  = (obj) => `<ul style="margin-top:6px">${Object.entries(obj).map(([k,v])=>`<li><b>${esc(k)}:</b> ${esc(v)}</li>`).join('')}</ul>`;
 
 function get(obj, path, fallback) {
   try {
@@ -298,13 +298,13 @@ async function buildInvoicePdf(order) {
       const title = get(i, 'product.title', 'Item');
       const price = get(i, 'product.price', 0);
       const qty   = i.qty || 0;
-      doc.fontSize(11).text(${title}  ×  ${qty}, { continued: true }).text(NLe ${price}, { align: 'right' });
+      doc.fontSize(11).text(`${title}  ×  ${qty}`, { continued: true }).text(`NLe ${price}`, { align: 'right' });
     });
 
     doc.moveDown().fontSize(11);
-    doc.text('Subtotal', { continued: true }).text(NLe ${subtotal}, { align: 'right' });
-    doc.text('Delivery', { continued: true }).text(NLe ${deliveryFee}, { align: 'right' });
-    doc.fontSize(12).text('Total', { continued: true }).text(NLe ${grandTotal}, { align: 'right' });
+    doc.text('Subtotal', { continued: true }).text(`NLe ${subtotal}`, { align: 'right' });
+    doc.text('Delivery', { continued: true }).text(`NLe ${deliveryFee}`, { align: 'right' });
+    doc.fontSize(12).text('Total', { continued: true }).text(`NLe ${grandTotal}`, { align: 'right' });
     doc.moveDown(2);
     doc.fontSize(10).fillColor('#555').text('Thank you for your purchase!');
     doc.end();
@@ -475,7 +475,7 @@ app.get('/api/admin/orders/export.csv', requireAdmin, async (req, res) => {
       ['ref','createdAt','name','phone','email','status','paymentStatus','deliveryZone','subtotal','deliveryFee','grandTotal','items']
     ];
     orders.forEach(o => {
-      const items = (o.items||[]).map(i => ${get(i,'product.title','Item')}×${i.qty}).join('; ');
+      const items = (o.items||[]).map(i => `${get(i,'product.title','Item')}×${i.qty}`).join('; ');
       rows.push([
         o.ref,
         new Date(o.createdAt).toISOString(),
@@ -494,7 +494,7 @@ app.get('/api/admin/orders/export.csv', requireAdmin, async (req, res) => {
 
     const csv = rows.map(r => r.map(v => {
       const s = String(v ?? '');
-      return /[",\n]/.test(s) ? "${s.replace(/"/g,'""')}" : s;
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
     }).join(',')).join('\n');
 
     res.setHeader('Content-Type','text/csv');
@@ -533,18 +533,18 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
         await mailer.sendMail({
           from: MAIL_FROM || SMTP_USER,
           to: customerEmail,
-          subject: Update for your order ${ref} – LWG,
+          subject: `Update for your order ${ref} – LWG`,
           html: `
             <div style="font-family:system-ui,Segoe UI,Roboto,Arial">
               <h3>Order ${esc(ref)} update</h3>
               <p>Hi ${esc(customerName)},</p>
               <p>We’ve updated your order:</p>
-              <ul>${changed.map(x=><li>${esc(x)}</li>).join('')}</ul>
-              ${note ? <p><b>Note from us:</b><br>${esc(note)}</p> : ''}
+              <ul>${changed.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+              ${note ? `<p><b>Note from us:</b><br>${esc(note)}</p>` : ''}
               <p>Your updated receipt is attached.</p>
             </div>
           `,
-          attachments: [{ filename: Receipt_${ref}.pdf, content: pdf }]
+          attachments: [{ filename: `Receipt_${ref}.pdf`, content: pdf }]
         });
       } catch (e) {
         console.error('Customer status email failed:', e?.message || e);
@@ -564,7 +564,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
 async function uploadProofToCloudinary({ base64, mime, filename }) {
   if (!base64 || !mime) return null;
   if (!CLOUDINARY_CLOUD_NAME) return null;
-  const dataUri = data:${mime};base64,${base64};
+  const dataUri = `data:${mime};base64,${base64}`;
   const res = await cloudinary.uploader.upload(dataUri, {
     folder: 'lwg-orders',
     resource_type: 'auto',
@@ -626,18 +626,18 @@ async function handleCreateOrder(req, res) {
     const addr = String(get(incoming, 'info.address', '')).replace(/\n/g, ' ').trim();
     const payDetails = get(incoming, 'info.payment_details', null);
 
-    const itemsTxt = (incoming.items||[]).map(i => • ${i.product.title} × ${i.qty} — NLe ${i.product.price}).join('\n');
-    const itemsHtml = (incoming.items||[]).map(i => <li>${esc(i.product.title)} × ${esc(i.qty)} — NLe ${esc(i.product.price)}</li>).join('');
+    const itemsTxt = (incoming.items||[]).map(i => `• ${i.product.title} × ${i.qty} — NLe ${i.product.price}`).join('\n');
+    const itemsHtml = (incoming.items||[]).map(i => `<li>${esc(i.product.title)} × ${esc(i.qty)} — NLe ${esc(i.product.price)}</li>`).join('');
     const chargesHTML = `
-      ${zone ? <p><b>Delivery area:</b> ${esc(zone)}</p> : ''}
+      ${zone ? `<p><b>Delivery area:</b> ${esc(zone)}</p>` : ''}
       <p><b>Charges:</b></p>
       <ul style="margin-top:6px">
         <li><b>Subtotal:</b> NLe ${esc(subtotal)}</li>
         <li><b>Delivery:</b> NLe ${esc(deliveryFee)}</li>
         <li><b>Total:</b> <b>NLe ${esc(grandTotal)}</b></li>
       </ul>`;
-    const payHtml = payDetails ? <p><b>Payment details:</b></p>${kvHTML(payDetails)} : '';
-    const payTxt  = payDetails ? \nPayment details:\n${kvBlock(payDetails)} : '';
+    const payHtml = payDetails ? `<p><b>Payment details:</b></p>${kvHTML(payDetails)}` : '';
+    const payTxt  = payDetails ? `\nPayment details:\n${kvBlock(payDetails)}` : '';
 
     // PDF receipt
     const orderForPdf = saved || {
@@ -654,12 +654,12 @@ async function handleCreateOrder(req, res) {
       await mailer.sendMail({
         from: MAIL_FROM || SMTP_USER,
         to: ADMIN_EMAIL || SMTP_USER,
-        subject: New Order ${ref} – LWG,
+        subject: `New Order ${ref} – LWG`,
         html: `
           <div style="font-family:system-ui,Segoe UI,Roboto,Arial">
             <h2>New Order ${esc(ref)}</h2>
             <p><b>Customer:</b> ${esc(name)}</p>
-            ${email ? <p><b>Email:</b> ${esc(email)}</p> : ''}
+            ${email ? `<p><b>Email:</b> ${esc(email)}</p>` : ''}
             <p><b>Phone:</b> ${esc(phone)}</p>
             <p><b>Payment:</b> ${esc(pay)}</p>
             ${payHtml}
@@ -667,15 +667,15 @@ async function handleCreateOrder(req, res) {
             ${chargesHTML}
             <p><b>Items:</b></p>
             <ul>${itemsHtml}</ul>
-            ${proofUrl ? <p><b>Payment proof:</b> <a href="${esc(proofUrl)}">${esc(proofUrl)}</a></p> : ''}
+            ${proofUrl ? `<p><b>Payment proof:</b> <a href="${esc(proofUrl)}">${esc(proofUrl)}</a></p>` : ''}
           </div>
         `,
         text:
 `New Order ${ref}
 Customer: ${name}
-${email ? Email: ${email}\n : ''}Phone: ${phone}
+${email ? `Email: ${email}\n` : ''}Phone: ${phone}
 Payment: ${pay}${payTxt}
-${zone ? Delivery area: ${zone}\n : ''}Charges:
+${zone ? `Delivery area: ${zone}\n` : ''}Charges:
 - Subtotal: NLe ${subtotal}
 - Delivery: NLe ${deliveryFee}
 - Total:    NLe ${grandTotal}
@@ -683,8 +683,8 @@ ${zone ? Delivery area: ${zone}\n : ''}Charges:
 Items:
 ${itemsTxt}
 
-${proofUrl ? Payment proof: ${proofUrl}\n : ''}`,
-        attachments: pdfBuf ? [{ filename: Receipt_${ref}.pdf, content: pdfBuf }] : []
+${proofUrl ? `Payment proof: ${proofUrl}\n` : ''}`,
+        attachments: pdfBuf ? [{ filename: `Receipt_${ref}.pdf`, content: pdfBuf }] : []
       });
     } catch (e) { console.error('Admin email failed:', e?.message || e); }
 
@@ -694,7 +694,7 @@ ${proofUrl ? Payment proof: ${proofUrl}\n : ''}`,
         await mailer.sendMail({
           from: MAIL_FROM || SMTP_USER,
           to: email,
-          subject: Order Confirmation ${ref} – LWG,
+          subject: `Order Confirmation ${ref} – LWG`,
           html: `
             <div style="font-family:system-ui,Segoe UI,Roboto,Arial">
               <h3>Thank you for your order, ${esc(name)}!</h3>
@@ -706,7 +706,7 @@ ${proofUrl ? Payment proof: ${proofUrl}\n : ''}`,
               <p>Your receipt is attached. We will contact you soon.</p>
             </div>
           `,
-          attachments: pdfBuf ? [{ filename: Receipt_${ref}.pdf, content: pdfBuf }] : []
+          attachments: pdfBuf ? [{ filename: `Receipt_${ref}.pdf`, content: pdfBuf }] : []
         });
       } catch (e) { console.error('Customer email failed:', e?.message || e); }
     }
@@ -731,7 +731,7 @@ ${proofUrl ? Payment proof: ${proofUrl}\n : ''}`,
 Name: ${name}
 Phone: ${phone}
 Payment: ${pay}${payTxt}
-${zone ? Delivery area: ${zone}\n : ''}Charges:
+${zone ? `Delivery area: ${zone}\n` : ''}Charges:
 - Subtotal: NLe ${subtotal}
 - Delivery: NLe ${deliveryFee}
 - Total:    NLe ${grandTotal}
@@ -763,7 +763,7 @@ ${proofUrl ? '📎 Proof attached (see admin email).' : ''}` });
 `✅ LWG Order Received (${ref})
 Thanks, ${name}!
 Payment: ${pay}
-${zone ? Delivery area: ${zone}\n : ''}Total: NLe ${grandTotal}
+${zone ? `Delivery area: ${zone}\n` : ''}Total: NLe ${grandTotal}
 We will contact you soon.` });
         }
       } catch (e) { console.error('Customer WA failed:', e?.message || e); }
@@ -887,7 +887,7 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
 
     const pdf = await buildInvoicePdf(order);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', attachment; filename="Receipt_${ref}.pdf");
+    res.setHeader('Content-Disposition', `attachment; filename="Receipt_${ref}.pdf"`);
     res.send(pdf);
   } catch (e) {
     console.error('Receipt PDF error:', e?.message || e);
@@ -900,5 +900,5 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
    ========================= */
 const port = process.env.PORT || PORT || 5001;
 app.listen(port, () => {
-  console.log('✔ API running on port ' + port);
+  console.log('✔ API running on port ' + port);
 });

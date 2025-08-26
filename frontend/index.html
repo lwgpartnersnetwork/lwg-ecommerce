@@ -6,22 +6,31 @@
   <title>LWG Store</title>
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
-    body{color:#e5e7eb;background:#0b1220}
-    .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #1f2937}
+    :root{
+      --bg:#0b1220;--line:#1f2937;--muted:#9ca3af;--text:#e5e7eb;
+      --pill-bg:#0f172a;--pill-border:#374151;--price:#ef4444;
+    }
+    body{background:var(--bg);color:var(--text)}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
     .nav .row{display:flex;gap:10px;align-items:center}
     .btn.ghost{border:1px solid #374151;background:#0f172a;color:#e5e7eb;padding:8px 12px;border-radius:10px;text-decoration:none}
-    .muted{color:#9ca3af}
     .badge{background:#1f2937;border:1px solid #374151;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:4px}
+    .muted{color:var(--muted)}
     .container{max-width:1100px;margin:24px auto;padding:0 16px}
+
+    /* grid + card */
     .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-    .card{border:1px solid #1f2937;border-radius:16px;overflow:hidden;background:#0b1220}
-    .card img{width:100%;height:180px;object-fit:cover;background:#111827}
-    .card .body{padding:12px}
-    .row{display:flex;gap:8px}
-    .price{font-weight:600}
-    .main{min-height:60vh}
-    .footer{border-top:1px solid #1f2937;padding:16px;text-align:center;color:#9ca3af}
-    .toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #374151;color:#e5e7eb;padding:10px 12px;border-radius:10px;display:none;z-index:50}
+    .card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#0b1220;cursor:pointer;transition:transform .08s ease}
+    .card:active{transform:scale(.995)}
+    .thumb{width:100%;height:188px;object-fit:cover;background:#111827;display:block}
+    .body{padding:12px}
+    .title{font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
+    .pill{display:inline-block;margin-top:8px;font-size:13px;background:var(--pill-bg);border:1px solid var(--pill-border);color:#c5d3f6;padding:6px 10px;border-radius:10px}
+    .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+    .price{color:var(--price);font-weight:800;font-size:18px}
+    .sold{color:var(--muted)}
+    .footer{border-top:1px solid var(--line);padding:16px;text-align:center;color:var(--muted)}
+    .empty{color:var(--muted);margin-top:10px}
   </style>
 </head>
 <body>
@@ -41,107 +50,82 @@
   </nav>
 
   <!-- MAIN content -->
-  <main class="main">
-    <div class="container">
-      <h1>Featured Products</h1>
-      <div id="grid" class="grid"></div>
-      <p id="empty" class="muted" style="display:none">No products yet. Add some in the Admin Dashboard, then refresh.</p>
-    </div>
+  <main class="container">
+    <h1 style="margin:8px 0 12px">Featured Products</h1>
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty" style="display:none">No products yet. Add some in the Admin Dashboard, then refresh.</p>
   </main>
 
   <footer class="footer">
     © <span id="y"></span> LWG Partners Network — Creating Impact Globally
   </footer>
 
-  <div class="toast" id="toast"></div>
-
 <script>
 (function(){
-  // ---- Shared localStorage keys (MUST match Admin page) ----
+  // localStorage keys (must match admin)
   var LS_PRODUCTS = 'lwg_products';
   var LS_CART     = 'lwg_cart';
 
-  // ---- Tiny Store (local) ----
-  var Store = {
-    products: function(){
-      try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
-      catch(e){ return []; }
-    },
-    cart: function(){
-      try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
-      catch(e){ return []; }
-    },
-    addToCart: function(id, qty){
-      var cart = Store.cart();
-      var found = false;
-      for (var i=0;i<cart.length;i++){
-        if (cart[i].id === id){ cart[i].qty += qty; found = true; break; }
-      }
-      if (!found) cart.push({ id:id, qty:qty });
-      localStorage.setItem(LS_CART, JSON.stringify(cart));
-    }
-  };
-
-  // ---- Helpers ----
+  // helpers
   function $(s){ return document.querySelector(s); }
-  function toast(msg){
-    var el = $('#toast'); if(!el) return alert(msg);
-    el.textContent = String(msg || '');
-    el.style.display = 'block';
-    setTimeout(function(){ el.style.display='none'; }, 1500);
-  }
   function money(n){
     var num = Number(n||0);
     try { return 'NLe ' + num.toLocaleString(); }
     catch(e){ return 'NLe ' + num; }
   }
-
-  // ---- Cart count ----
+  function products(){
+    try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
+    catch(e){ return []; }
+  }
+  function cart(){
+    try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
+    catch(e){ return []; }
+  }
   function updateCount(){
-    var count = Store.cart().reduce(function(s,i){ return s + Number(i.qty||0); }, 0);
-    var el = $('#cartCount'); if (el) el.textContent = count;
+    var c = cart().reduce(function(s,i){ return s + Number(i.qty||0); }, 0);
+    $('#cartCount').textContent = c;
   }
 
-  // ---- Product card ----
-  var grid = $('#grid');
-  function card(p){
-    var img = p.image || '';
-    var title = p.title || 'Product';
-    var stock = Number(p.stock || 0);
-    var el = document.createElement('div'); el.className = 'card';
-    el.innerHTML =
-      '<a href="product.html?id='+ encodeURIComponent(p.id) +'"><img src="'+ img +'" alt="'+ title +'"></a>' +
-      '<div class="body">' +
-        '<a href="product.html?id='+ encodeURIComponent(p.id) +'"><strong>'+ title +'</strong></a>' +
-        '<div class="row" style="justify-content:space-between">' +
-          '<span class="price">'+ money(p.price) +'</span>' +
-          '<span class="muted">Stock: '+ stock +'</span>' +
-        '</div>' +
-        '<button class="btn add">Add to cart</button>' +
-      '</div>';
-    el.querySelector('.add').addEventListener('click', function(){
-      Store.addToCart(p.id, 1);
-      updateCount();
-      toast('Added to cart');
+  // build a card that navigates to product page on click
+  function makeCard(p){
+    var el = document.createElement('article');
+    el.className = 'card';
+    var sold = Number(p.sold || 0);
+    var title = String(p.title || 'Product');
+    var img = String(p.image || '');
+
+    el.innerHTML = `
+      <img class="thumb" src="${img}" alt="${title.replace(/"/g,'&quot;')}">
+      <div class="body">
+        <div class="title">${title}</div>
+        <div class="pill">Return package freight</div>
+        <div class="row">
+          <div class="price">${money(p.price)}</div>
+          <div class="sold">${sold.toLocaleString()} sold</div>
+        </div>
+      </div>
+    `;
+
+    // whole card opens details
+    el.addEventListener('click', function(){
+      location.href = 'product.html?id=' + encodeURIComponent(p.id);
     });
     return el;
   }
 
-  // ---- Render ----
-  var products = Store.products(); // <-- reads the SAME key admin uses
-  if (!products.length){
+  // render grid
+  var list = products();
+  var grid = $('#grid');
+  if (!list.length){
     $('#empty').style.display = 'block';
   } else {
-    for (var i=0;i<products.length;i++){
-      grid.appendChild(card(products[i]));
-    }
+    list.forEach(function(p){ grid.appendChild(makeCard(p)); });
   }
 
-  // Footer year + cart count
+  // footer year and cart count
   $('#y').textContent = new Date().getFullYear();
   updateCount();
 })();
 </script>
 </body>
 </html>
-

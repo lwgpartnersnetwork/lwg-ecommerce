@@ -5,133 +5,205 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Track Order • LWG</title>
   <link rel="stylesheet" href="css/styles.css"/>
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    .card{max-width:760px;margin:24px auto;background:#0b1220;border:1px solid #1f2937;border-radius:16px;padding:18px;color:#e5e7eb}
-    .row{display:flex;justify-content:space-between;gap:12px;margin:6px 0}
+    :root{--line:#1f2937;--bg:#0b1220;--muted:#94a3b8;--text:#e5e7eb;--brand:#1d4ed8;--brand2:#1e40af}
+    body{background:var(--bg);color:var(--text)}
+    .card{max-width:760px;margin:24px auto;background:#0b1220;border:1px solid var(--line);border-radius:16px;padding:18px}
+    .row{display:flex;justify-content:space-between;gap:12px;margin:6px 0;flex-wrap:wrap}
+    .grid{display:grid;gap:12px}
+    @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
     .items li{margin:4px 0}
     .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;background:#6b7280}
     .status-dot.active{background:#22c55e}
     .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
-    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer}
-    .btn.primary{background:#1d4ed8;border-color:#1e40af}
-    .grid{display:grid;gap:12px}
-    @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--brand2);background:var(--brand);color:#e5e7eb;cursor:pointer}
+    .btn.ghost{background:#0f172a;border:1px solid #374151}
+    .muted{color:var(--muted)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .small{font-size:12px}
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>Track your order</h2>
-    <p>Enter your reference and the phone or email you used.</p>
-    <div class="grid">
-      <div><label>Reference</label><input id="ref" class="input" placeholder="e.g. LWG-ABC123"/></div>
-      <div><label>Phone (E.164) or Email</label><input id="contact" class="input" placeholder="+232... or name@example.com"/></div>
-    </div>
-    <div style="margin-top:12px"><button id="go" class="btn primary">Track</button></div>
+    <h2 style="margin-top:4px">Track your order</h2>
+    <p class="muted">Enter your <b>reference</b> and the <b>phone</b> or <b>email</b> you used at checkout.</p>
+    <form id="trackForm" class="grid" novalidate>
+      <div>
+        <label class="small muted">Reference</label>
+        <input id="ref" class="input" placeholder="e.g. LWG-ABC123" autocomplete="off" required/>
+      </div>
+      <div>
+        <label class="small muted">Phone (E.164) or Email</label>
+        <input id="contact" class="input" placeholder="+232… or name@example.com" autocomplete="off" required/>
+      </div>
+      <div class="actions">
+        <button id="go" class="btn" type="submit">Track</button>
+        <a id="dl" class="btn ghost" href="#" download style="display:none">Download receipt (PDF)</a>
+      </div>
+      <div id="hint" class="muted small" style="display:none">Tip: phone must start with “+” (example: <b>+2327…</b>)</div>
+    </form>
   </div>
 
   <div id="result" class="card" style="display:none"></div>
 
 <script>
 (function(){
-  // --- Config ---
-  var API = https://lwg-api.onrender.com
+  // === CONFIG (Prod API) ===
+  const API = 'https://lwg-api.onrender.com';
 
-
-  // --- Helpers ---
-  function $(s){ return document.querySelector(s); }
-  function formatMoney(n){
-    var num = Number(n||0);
-    try { return 'NLe ' + num.toLocaleString(); }
-    catch(e){ return 'NLe ' + num; }
-  }
-  function iso(d){
-    try { return new Date(d).toLocaleString(); }
-    catch(e){ return d; }
-  }
-  function get(obj, path, fallback){
-    var parts = path.split('.');
-    var cur = obj;
-    for (var i=0;i<parts.length;i++){
-      if (cur == null || typeof cur !== 'object') return fallback;
-      cur = cur[parts[i]];
-    }
-    return (cur == null ? fallback : cur);
-  }
-  function renderStatus(status){
-    var steps = ['New','Processing','Shipped','Completed','Cancelled'];
-    var out = '<div>';
-    for (var i=0;i<steps.length;i++){
-      var s = steps[i];
-      out += '<span class="status-dot' + (s===status?' active':'') + '"></span>' + s;
-      if (i < steps.length-1) out += ' · ';
-    }
-    out += '</div>';
-    return out;
-  }
-
-  // --- Main ---
-  async function track(){
-    var ref = $('#ref').value.trim();
-    var contact = $('#contact').value.trim();
-    if(!ref || !contact){
-      return Swal.fire({icon:'info', title:'Enter both fields'});
-    }
-
-    var qs = new URLSearchParams();
-    qs.set('ref', ref);
-    if (contact.indexOf('@') !== -1) qs.set('email', contact); else qs.set('phone', contact);
-
-    var resp;
+  // === Helpers ===
+  const $ = s => document.querySelector(s);
+  const money = n => 'NLe ' + Number(n||0).toLocaleString();
+  const iso = d => { try { return new Date(d).toLocaleString(); } catch(e){ return d; } };
+  const isEmail = v => /\S+@\S+\.\S+/.test(String(v||''));
+  const normalizePhone = v => {
+    if (!v) return '';
+    // keep + and digits only, ensure leading +
+    const digits = String(v).replace(/[^\d+]/g,'').replace(/^\+?/,'');
+    return digits ? ('+' + digits) : '';
+  };
+  const get = (obj, path, fb) => {
     try {
-      resp = await fetch(API + '/api/orders/track?' + qs.toString());
-    } catch(e){
-      return Swal.fire({icon:'error', title:'Network error', text:String(e)});
+      return path.split('.').reduce((a,k)=> (a && a[k] !== undefined ? a[k] : undefined), obj) ?? fb;
+    } catch { return fb; }
+  };
+  function renderStatus(status){
+    const steps = ['New','Processing','Shipped','Completed','Cancelled'];
+    return '<div>' + steps.map(s =>
+      '<span class="status-dot'+(s===status?' active':'')+'"></span>'+s
+    ).join(' · ') + '</div>';
+  }
+
+  // === UI bits ===
+  function setLoading(on){
+    const btn = $('#go'); if (!btn) return;
+    btn.disabled = !!on;
+    btn.textContent = on ? 'Checking…' : 'Track';
+  }
+  function showHint(on){ $('#hint').style.display = on ? 'block' : 'none'; }
+
+  // === Main ===
+  async function track(e){
+    if (e) e.preventDefault();
+    const ref = $('#ref').value.trim();
+    const raw = $('#contact').value.trim();
+    if (!ref || !raw){
+      Swal.fire({icon:'info', title:'Enter both fields'});
+      return;
     }
 
-    var data;
+    // build query
+    const qs = new URLSearchParams({ ref });
+    let identity = raw;
+    if (isEmail(raw)) {
+      qs.set('email', raw);
+      showHint(false);
+    } else {
+      identity = normalizePhone(raw);
+      if (!identity.startsWith('+')) {
+        showHint(true);
+        Swal.fire({icon:'info', title:'Phone format', text:'Start with + and country code (e.g. +232...)'});
+        return;
+      }
+      qs.set('phone', identity);
+      showHint(false);
+    }
+
+    // fetch
+    setLoading(true);
+    let resp, data;
+    try {
+      resp = await fetch(`${API}/api/orders/track?${qs}`, { cache:'no-store' });
+    } catch(err){
+      setLoading(false);
+      Swal.fire({icon:'error', title:'Network error', text:String(err)});
+      return;
+    }
+
     try {
       data = await resp.json();
-    } catch(e){
-      return Swal.fire({icon:'error', title:'Invalid server response'});
+    } catch {
+      setLoading(false);
+      Swal.fire({icon:'error', title:'Invalid server response'});
+      return;
     }
 
+    setLoading(false);
+
+    // handle errors
+    if (resp.status === 429){
+      Swal.fire({icon:'warning', title:'Too many requests', text:'Please wait a minute and try again.'});
+      return;
+    }
+    if (resp.status === 503){
+      Swal.fire({icon:'info', title:'Orders database unavailable', text:'Please try again later.'});
+      return;
+    }
     if (!resp.ok || !data || data.ok !== true){
-      var msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
-      return Swal.fire({icon:'error', title:'Not found', text: msg});
+      const msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+      Swal.fire({icon:'error', title:'Not found', text: msg});
+      $('#result').style.display = 'none';
+      $('#dl').style.display = 'none';
+      return;
     }
 
-    var o = data.order || {};
-    var itemsArr = Array.isArray(o.items) ? o.items : [];
-    var itemsHTML = itemsArr.map(function(x){
-      var title = get(x, 'product.title', 'Item');
-      var price = get(x, 'product.price', 0);
-      var qty = x && x.qty ? x.qty : 0;
-      return '<li>' + title + ' × ' + qty + ' — ' + formatMoney(price) + '</li>';
+    // success
+    const o = data.order || {};
+    const itemsArr = Array.isArray(o.items) ? o.items : [];
+    const itemsHTML = itemsArr.map(x => {
+      const t = get(x,'product.title','Item');
+      const p = get(x,'product.price',0);
+      const q = x && x.qty ? x.qty : 0;
+      return `<li>${t} × ${q} — ${money(p)}</li>`;
     }).join('');
 
-    var total = get(o, 'info.grandTotal', get(o, 'info.subtotal', 0));
-    var cust = get(o, 'info.name', '');
-    var contactOut = get(o, 'info.phone', get(o, 'info.email', ''));
-    var zone = get(o, 'info.deliveryZone', '');
+    const total = get(o,'info.grandTotal', get(o,'info.subtotal', 0));
+    const cust  = get(o,'info.name','');
+    const contactOut = get(o,'info.phone', get(o,'info.email',''));
+    const zone  = get(o,'info.deliveryZone','');
 
-    var html =
-      '<h3>Order ' + (o.ref || '') + '</h3>' +
-      '<div class="row"><div><b>Date</b></div><div>' + iso(o.createdAt) + '</div></div>' +
-      '<div class="row"><div><b>Status</b></div><div>' + renderStatus(o.status) + '</div></div>' +
-      '<div class="row"><div><b>Payment</b></div><div>' + (o.paymentStatus || '') + '</div></div>' +
-      '<div class="row"><div><b>Customer</b></div><div>' + cust + '</div></div>' +
-      '<div class="row"><div><b>Contact</b></div><div>' + contactOut + '</div></div>' +
-      '<div class="row"><div><b>Delivery</b></div><div>' + zone + '</div></div>' +
-      '<div class="row"><div><b>Total</b></div><div><b>' + formatMoney(total) + '</b></div></div>' +
-      '<div style="margin-top:10px"><b>Items</b><ul class="items">' + itemsHTML + '</ul></div>';
+    const html = `
+      <h3 style="margin-top:2px">Order ${o.ref || ''}</h3>
+      <div class="row"><div><b>Date</b></div><div>${iso(o.createdAt)}</div></div>
+      <div class="row"><div><b>Status</b></div><div>${renderStatus(o.status)}</div></div>
+      <div class="row"><div><b>Payment</b></div><div>${o.paymentStatus || ''}</div></div>
+      <div class="row"><div><b>Customer</b></div><div>${cust}</div></div>
+      <div class="row"><div><b>Contact</b></div><div>${contactOut}</div></div>
+      <div class="row"><div><b>Delivery</b></div><div>${zone}</div></div>
+      <div class="row"><div><b>Total</b></div><div><b>${money(total)}</b></div></div>
+      <div style="margin-top:10px"><b>Items</b><ul class="items">${itemsHTML}</ul></div>
+    `;
 
-    var result = $('#result');
+    const result = $('#result');
     result.innerHTML = html;
     result.style.display = 'block';
+
+    // prepare receipt PDF link
+    const dl = $('#dl');
+    const qs2 = new URLSearchParams({ ref: o.ref });
+    if (isEmail(identity)) qs2.set('email', identity); else qs2.set('phone', identity);
+    dl.href = `${API}/api/orders/receipt.pdf?${qs2}`;
+    dl.style.display = 'inline-flex';
   }
 
-  $('#go').onclick = track;
+  // submit + Enter key
+  $('#trackForm').addEventListener('submit', track);
+  $('#go').addEventListener('click', track);
+
+  // prefill from hash: order-tracking.html#LWG-XXX|+2327..orEmail
+  (function bootFromHash(){
+    if (location.hash.includes('|')) {
+      const [r, who] = decodeURIComponent(location.hash.slice(1)).split('|');
+      $('#ref').value = (r||'').trim();
+      $('#contact').value = (who||'').trim();
+      history.replaceState(null, '', location.pathname);
+      $('#trackForm').dispatchEvent(new Event('submit', {cancelable:true}));
+    }
+  })();
 })();
 </script>
 </body>

@@ -75,7 +75,6 @@ const isEmail = v => /\S+@\S+\.\S+/.test(v);
 const normalizePhone = v => {
   const s = (v||'').trim();
   if (!s) return '';
-  // keep digits, ensure single leading +
   const digits = s.replace(/[^\d+]/g,'').replace(/^(\+)?/, '');
   return '+' + digits;
 };
@@ -187,7 +186,7 @@ $('#rcpt-form').addEventListener('submit', async (e) => {
   try {
     if (!ref || !who) throw new Error('Enter both fields');
     btnLoading(true);
-    resetTransient(); // clear old result/timers, keep inputs
+    resetTransient();
     say('Looking up your order…');
 
     const { order, qs } = await fetchOrder(ref, who);
@@ -198,7 +197,7 @@ $('#rcpt-form').addEventListener('submit', async (e) => {
     dl.href = `${API}/api/orders/receipt.pdf?${qs}`;
     dl.style.display = 'inline-flex';
 
-    history.replaceState(null, '', location.pathname); // strip any hash/query
+    history.replaceState(null, '', location.pathname);
     startAutoHide();
   } catch (err) {
     say(String(err.message || err), 'err');

@@ -7,27 +7,61 @@
   <link rel="stylesheet" href="css/styles.css"/>
 
   <style>
-    .wrap{max-width:1120px;margin:0 auto;padding:24px}
-    .product{display:grid;grid-template-columns: 1fr 1fr; gap:24px}
-    @media (max-width: 820px){ .product{grid-template-columns:1fr} }
-    /* tidy, consistent image sizing */
-    .product .imgbox{
-      background:#0b1220;border:1px solid #1f2937;border-radius:14px;overflow:hidden;
-      display:flex;align-items:center;justify-content:center;min-height:340px;
+    :root{
+      --bg:#0b1220; --panel:#0b1220; --line:#1f2937; --muted:#94a3b8;
+      --text:#e5e7eb; --btn:#111827; --btn-line:#1f2937;
+      --brand:#2563eb; --ok:#16a34a; --okline:#15803d; --warn:#f59e0b;
     }
-    .product .imgbox img{width:100%;max-height:560px;object-fit:contain}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
+    a{color:inherit}
+    .wrap{max-width:1120px;margin:0 auto;padding:20px}
+    .crumbs{font-size:14px;color:var(--muted);margin-bottom:10px}
+    .crumbs a{text-decoration:none;color:var(--muted)}
+    .product{
+      display:grid;grid-template-columns: 1.1fr 0.9fr;gap:28px;align-items:start
+    }
+    @media (max-width: 900px){ .product{grid-template-columns:1fr} }
+
+    /* gallery */
+    .gallery{display:grid;grid-template-columns:96px 1fr;gap:12px}
+    @media (max-width: 720px){ .gallery{grid-template-columns:1fr} }
+    .thumbs{display:flex;flex-direction:column;gap:10px;max-height:540px;overflow:auto;padding-right:4px}
+    .thumb{border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:#0b1220}
+    .thumb img{display:block;width:100%;height:80px;object-fit:cover}
+    .thumb.active{outline:2px solid var(--brand)}
+    .stage{border:1px solid var(--line);border-radius:16px;background:#0b1220;display:flex;align-items:center;justify-content:center;min-height:360px;overflow:hidden}
+    .stage img{width:100%;max-height:640px;object-fit:contain;display:block;background:#0b1220}
+
+    /* right panel */
+    .title{margin:0 0 4px}
     .muted{color:var(--muted)}
+    .price{font-size:22px;font-weight:700;margin:6px 0}
+    .stock{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
+    .stock.ok{border-color:#14532d;background:#052e16}
+    .stock.low{border-color:#4d2a00;background:#1f1300}
+    .sku{font-size:12px;color:var(--muted)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .qty{display:inline-flex;align-items:center;border:1px solid #334155;border-radius:10px;overflow:hidden}
     .qty button{border:0;background:#0b1220;color:#e5e7eb;padding:10px 14px;cursor:pointer}
-    .qty input{width:72px;border:0;background:#0b1220;color:#e5e7eb;text-align:center;padding:10px}
-    .related{margin-top:32px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
-    .card{background:#0b1220;border:1px solid #1f2937;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-    .card img{width:100%;height:180px;object-fit:cover;background:#111827}
-    .card .body{padding:12px;display:flex;flex-direction:column;gap:8px}
-    .btn{background:var(--brand);border:0;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer}
+    .qty input{width:78px;border:0;background:#0b1220;color:#e5e7eb;text-align:center;padding:10px}
+    .btn{background:var(--brand);border:0;color:#fff;padding:12px 16px;border-radius:12px;cursor:pointer}
     .btn.ghost{background:transparent;border:1px solid #334155;color:#e5e7eb}
-    .price{color:var(--good);font-weight:700}
+    .btn.ok{background:var(--ok)}
+    .sp{height:10px}
+
+    /* accordion */
+    .acc{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .acc .head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0f172a;cursor:pointer}
+    .acc .body{padding:12px 14px;display:none;background:#0b1220}
+    .acc.open .body{display:block}
+
+    /* related rail */
+    .related{margin-top:26px}
+    .rail{display:flex;gap:14px;overflow:auto;padding-bottom:8px;scroll-snap-type:x proximity}
+    .card{min-width:220px;scroll-snap-align:start;background:#0b1220;border:1px solid #1f2937;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+    .card img{width:100%;height:160px;object-fit:cover;background:#111827}
+    .card .body{padding:12px;display:flex;flex-direction:column;gap:8px}
+    .badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--muted)}
     .toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #1f2937;color:#e5e7eb;padding:12px 14px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.25s}
     .toast.show{opacity:1;transform:translateY(0)}
   </style>
@@ -50,10 +84,15 @@
   </nav>
 
   <main class="wrap">
-    <div id="out"></div>
+    <div id="crumbs" class="crumbs"></div>
+    <section id="product" class="product"></section>
+
     <section class="related">
-      <h3>Related products</h3>
-      <div id="rel" class="grid"></div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">Related products</h3>
+        <span class="muted" style="font-size:13px">You might also like</span>
+      </div>
+      <div id="rail" class="rail"></div>
     </section>
   </main>
 
@@ -61,30 +100,31 @@
 
 <script>
 (function(){
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Storage keys (same as Admin dashboard)
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   var LS_PRODUCTS = 'lwg_products';
   var LS_CART     = 'lwg_cart';
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Tiny helpers
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   function $(s){ return document.querySelector(s); }
   function money(n){ return 'NLe ' + Number(n||0).toLocaleString(); }
   function toast(msg){
     var t = $('#toast'); if(!t) return alert(msg);
     t.textContent = String(msg||''); t.classList.add('show');
-    setTimeout(()=> t.classList.remove('show'), 1600);
+    setTimeout(()=> t.classList.remove('show'), 1400);
   }
   function getParam(name){
     var u = new URL(location.href);
     return u.searchParams.get(name);
   }
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Store-like utilities using the SAME keys as Admin
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   var Store = {
     products: function(){
       try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
@@ -114,82 +154,140 @@
     }
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Cart count bubble
-  // ────────────────────────────────────────────────────────────────────────────
+  // cart count bubble
   function updateCount(){
     var c = Store.cart().reduce(function(s,i){ return s + Number(i.qty||0); }, 0);
     var el = $('#cartCount'); if (el) el.textContent = c;
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Render product
-  // ────────────────────────────────────────────────────────────────────────────
+  // breadcrumb
+  function renderCrumbs(p){
+    var cat = p && p.category ? esc(p.category) : 'Products';
+    $('#crumbs').innerHTML =
+      '<a href="index.html">Home</a> &nbsp;›&nbsp; ' +
+      '<a href="index.html#'+encodeURIComponent(cat)+'">'+cat+'</a> &nbsp;›&nbsp; ' +
+      '<span>'+esc(p && p.title || '')+'</span>';
+  }
+
+  // gallery
+  function buildGallery(images){
+    var gallery = document.createElement('div'); gallery.className='gallery';
+    var thumbs = document.createElement('div'); thumbs.className='thumbs'; thumbs.id='thumbs';
+    var stage = document.createElement('div'); stage.className='stage'; stage.id='stage';
+    stage.innerHTML = '<img id="mainImg" src="'+esc(images[0]||'')+'" alt="">';
+
+    images.forEach(function(src, idx){
+      var d = document.createElement('div'); d.className='thumb' + (idx===0?' active':'');
+      d.innerHTML = '<img src="'+esc(src)+'" alt="">';
+      d.addEventListener('click', function(){
+        var main = $('#mainImg'); if (main) main.src = src;
+        document.querySelectorAll('.thumb').forEach(function(t){ t.classList.remove('active'); });
+        d.classList.add('active');
+      });
+      thumbs.appendChild(d);
+    });
+
+    gallery.appendChild(thumbs);
+    gallery.appendChild(stage);
+    return gallery;
+  }
+
+  // accordion
+  function accItem(title, html){
+    var box = document.createElement('div'); box.className='acc';
+    box.innerHTML =
+      '<div class="head"><strong>'+esc(title)+'</strong><span class="muted">toggle</span></div>' +
+      '<div class="body">'+html+'</div>';
+    box.querySelector('.head').addEventListener('click', function(){ box.classList.toggle('open'); });
+    return box;
+  }
+
+  // product render
   function renderProduct(p){
-    var out = $('#out');
+    var host = $('#product');
     if (!p){
-      out.innerHTML = '<p class="muted">Failed to load product.</p>';
+      host.innerHTML = '<p class="muted">This product could not be found.</p>';
       return;
     }
-    out.innerHTML = `
-      <section class="product">
-        <div class="imgbox">
-          <img src="${p.image || ''}" alt="${(p.title||'').replace(/"/g,'&quot;')}">
-        </div>
-        <div>
-          <h1 style="margin-top:0">${p.title||''}</h1>
-          <div class="row" style="justify-content:space-between">
-            <div class="price" style="font-size:20px">${money(p.price||0)}</div>
-            <div class="muted">Stock: ${Number(p.stock||0)}</div>
-          </div>
-          <p class="muted" style="white-space:pre-wrap">${p.desc||''}</p>
 
-          <div class="row" style="gap:12px;align-items:center;margin-top:10px">
-            <label class="muted">Qty</label>
-            <div class="qty">
-              <button type="button" id="dec">−</button>
-              <input id="qty" type="number" min="1" value="1">
-              <button type="button" id="inc">+</button>
-            </div>
-            <button class="btn" id="add">Add to cart</button>
-          </div>
-        </div>
-      </section>
-    `;
+    // images
+    var imgs = Array.isArray(p.images) && p.images.length ? p.images.slice(0,8) : [p.image].filter(Boolean);
+
+    var left = buildGallery(imgs);
+
+    var right = document.createElement('div');
+    right.innerHTML =
+      '<h1 class="title">'+esc(p.title||'')+'</h1>' +
+      '<div class="row" style="justify-content:space-between">' +
+        '<div class="price">'+money(p.price||0)+'</div>' +
+        '<div class="stock '+(Number(p.stock||0)>5?'ok':(Number(p.stock||0)>0?'low':''))+'">' +
+          '<span>Stock: '+Number(p.stock||0)+'</span>' +
+        '</div>' +
+      '</div>' +
+      (p.sku ? '<div class="sku">SKU: '+esc(p.sku)+'</div>' : '') +
+      '<div class="sp"></div>' +
+      '<div class="row" style="gap:12px;align-items:center">'+
+        '<label class="muted">Qty</label>'+
+        '<div class="qty">'+
+          '<button type="button" id="dec">−</button>'+
+          '<input id="qty" type="number" min="1" value="1">'+
+          '<button type="button" id="inc">+</button>'+
+        '</div>'+
+        '<button class="btn" id="add">Add to cart</button>'+
+        '<button class="btn ok" id="buy">Buy now</button>'+
+      '</div>'+
+      '<div class="sp"></div>';
+
+    // details accordion
+    var details = document.createElement('div');
+    var descHtml = '<p class="muted" style="white-space:pre-wrap">'+esc(p.desc||'No description yet.')+'</p>';
+    details.appendChild(accItem('Description', descHtml));
+
+    if (p.specs && typeof p.specs === 'object'){
+      var rows = Object.keys(p.specs).map(function(k){
+        return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line)"><b>'+esc(k)+'</b></td>'+
+               '<td style="padding:6px 8px;border-bottom:1px solid var(--line)">'+esc(String(p.specs[k]))+'</td></tr>';
+      }).join('');
+      var specsHtml = '<table style="width:100%;border-collapse:collapse">'+rows+'</table>';
+      details.appendChild(accItem('Specifications', specsHtml));
+    }
+
+    var shell = document.createElement('div');
+    shell.appendChild(left);
+    shell.appendChild(right);
+    host.appendChild(shell);
+    host.appendChild(details);
 
     // qty controls
     var qty = $('#qty');
     $('#dec').onclick = function(){ qty.value = Math.max(1, parseInt(qty.value||'1',10)-1); };
     $('#inc').onclick = function(){ qty.value = Math.max(1, parseInt(qty.value||'1',10)+1); };
 
-    // add to cart
-    $('#add').onclick = function(){
+    // add/buy
+    function doAdd(){
       var q = Math.max(1, parseInt(qty.value||'1',10));
-      // If you want to respect stock, clamp here:
       if (Number.isFinite(Number(p.stock))) q = Math.min(q, Math.max(1, Number(p.stock)));
       Store.addToCart(p.id, q);
       updateCount();
       toast('Added to cart');
-    };
+    }
+    $('#add').onclick = doAdd;
+    $('#buy').onclick = function(){ doAdd(); location.href = 'cart.html'; };
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Related products
-  // ────────────────────────────────────────────────────────────────────────────
+  // related
   function card(x){
     var el = document.createElement('div'); el.className='card';
-    el.innerHTML = `
-      <a href="product.html?id=${encodeURIComponent(x.id)}">
-        <img src="${x.image||''}" alt="${(x.title||'').replace(/"/g,'&quot;')}">
-      </a>
-      <div class="body">
-        <a href="product.html?id=${encodeURIComponent(x.id)}"><strong>${x.title||''}</strong></a>
-        <div class="row" style="justify-content:space-between">
-          <span class="price">${money(x.price||0)}</span>
-          <span class="muted">Stock: ${Number(x.stock||0)}</span>
-        </div>
-        <button class="btn ghost add">Add</button>
-      </div>`;
+    el.innerHTML =
+      '<a href="product.html?id='+encodeURIComponent(x.id)+'"><img src="'+esc(x.image||'')+'" alt="'+esc(x.title||'')+'"></a>'+
+      '<div class="body">'+
+        '<a href="product.html?id='+encodeURIComponent(x.id)+'"><strong>'+esc(x.title||'')+'</strong></a>'+
+        '<div class="row" style="justify-content:space-between">'+
+          '<span>'+money(x.price||0)+'</span>'+
+          '<span class="badge">Stock '+Number(x.stock||0)+'</span>'+
+        '</div>'+
+        '<button class="btn ghost add">Add</button>'+
+      '</div>';
     el.querySelector('.add').onclick = function(){
       Store.addToCart(x.id, 1);
       updateCount();
@@ -198,19 +296,28 @@
     return el;
   }
 
-  function renderRelated(currentId){
-    var rel = $('#rel'); rel.innerHTML = '';
-    var ps = Store.products().filter(function(p){ return p && p.id !== currentId; }).slice(0, 8);
-    ps.forEach(function(p){ rel.appendChild(card(p)); });
+  function renderRelated(current){
+    var rail = $('#rail'); rail.innerHTML='';
+    var all = Store.products().filter(function(p){ return p && p.id !== current.id; });
+    // Prefer same category first
+    var same = all.filter(function(p){ return p.category && current.category && p.category===current.category; });
+    var rest = all.filter(function(p){ return !same.includes(p); });
+    var picks = same.concat(rest).slice(0,12);
+    picks.forEach(function(p){ rail.appendChild(card(p)); });
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Boot
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   var id = getParam('id');
   var product = id ? Store.getProduct(id) : null;
-  renderProduct(product);
-  renderRelated(id || '');
+  renderCrumbs(product || {});
+  if (product){
+    renderProduct(product);
+    renderRelated(product);
+  }else{
+    $('#product').innerHTML = '<p class="muted">Product not found.</p>';
+  }
   updateCount();
 })();
 </script>

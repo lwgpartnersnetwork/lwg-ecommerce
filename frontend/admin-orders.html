@@ -39,10 +39,11 @@
 <body>
   <div class="topbar">
     <h2 style="margin:0">LWG • Admin Orders</h2>
-    <div class="row">
+    <div class="row" style="flex-wrap:wrap;gap:8px">
       <input id="user" class="input" placeholder="user" style="max-width:140px"/>
       <input id="pass" class="input" placeholder="pass" type="password" style="max-width:140px"/>
       <button id="login" class="btn primary">Login</button>
+      <button id="demo" class="btn ghost" title="Quick demo login (client only)">Demo login</button>
       <button id="logout" class="btn ghost" title="Clear token">Logout</button>
     </div>
   </div>
@@ -75,7 +76,12 @@
 
 <script>
 (function(){
-https://lwg-api.onrender.com
+  // ✅ API base
+  const API = 'https://lwg-api.onrender.com';
+
+  // Demo creds (client-only)
+  const DEMO_USER = 'admin';
+  const DEMO_PASS = 'admin123';
 
   function $(s){ return document.querySelector(s); }
   function iso(d){ try{ return new Date(d).toLocaleString(); }catch(e){ return d; } }
@@ -102,7 +108,7 @@ https://lwg-api.onrender.com
     return { ok: r.ok, status: r.status, data: null, raw: txt };
   }
 
-  // Auth
+  // Auth: server login
   $('#login').onclick = async function(){
     try{
       const res = await jsonFetch(API + '/api/admin/login', {
@@ -121,6 +127,21 @@ https://lwg-api.onrender.com
       Swal.fire({icon:'error', title:'Login failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+String(e.message||e)+'</pre>'});
     }
   };
+
+  // Auth: demo login (client-only token)
+  $('#demo').onclick = function(){
+    const u = $('#user').value.trim() || DEMO_USER;
+    const p = $('#pass').value.trim() || DEMO_PASS;
+    if (u === DEMO_USER && p === DEMO_PASS){
+      setToken('DEMO_TOKEN'); // note: server will reject protected actions with this
+      Swal.fire({icon:'success', title:'Demo unlocked', text:'This lets you view the UI. Use real server login for updates/email.', timer:1800, showConfirmButton:false});
+      // You can still load; server endpoints that require real token may 401
+      load(1);
+    } else {
+      Swal.fire({icon:'info', title:'Use admin / admin123 for demo'});
+    }
+  };
+
   $('#logout').onclick = function(){ clearToken(); Swal.fire({icon:'info', title:'Logged out', timer:1200, showConfirmButton:false}); };
 
   // Pagination state
@@ -138,6 +159,7 @@ https://lwg-api.onrender.com
 
     if (q) qs.set('q', q);
     if (st) qs.set('status', st);
+    if (pst) qs.set('pstatus', pst);
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
     qs.set('page', state.page);
@@ -192,6 +214,8 @@ https://lwg-api.onrender.com
       }).join('') +
     '</ul>';
   }
+
+  function opt(cur, val){ return '<option '+ (cur===val?'selected':'') +'>'+val+'</option>'; }
 
   function render(orders){
     if (!token()){
@@ -264,8 +288,6 @@ https://lwg-api.onrender.com
     }
   }
 
-  function opt(cur, val){ return '<option '+ (cur===val?'selected':'') +'>'+val+'</option>'; }
-
   async function updateOrder(e){
     var id  = e.currentTarget.getAttribute('data-id');
     var st  = document.querySelector('.sel.st[data-id="'+id+'"]').value;
@@ -310,4 +332,3 @@ https://lwg-api.onrender.com
 </script>
 </body>
 </html>
-

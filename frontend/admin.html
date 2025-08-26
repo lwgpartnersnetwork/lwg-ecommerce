@@ -1,4 +1,4 @@
-<!doctype html>
+<!doctype html> 
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -60,11 +60,11 @@
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
       <div>
         <label class="label">Username</label>
-        <input id="user" class="input" placeholder="admin"/>
+        <input id="user" class="input" placeholder="admin" autocomplete="username"/>
       </div>
       <div>
         <label class="label">Password</label>
-        <input id="pass" class="input" type="password" placeholder="••••••••"/>
+        <input id="pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password"/>
       </div>
     </div>
     <div class="row" style="margin-top:10px;justify-content:space-between">
@@ -145,30 +145,32 @@
 <script>
 (function(){
   // ====== Settings ======
-  var API =   https://lwg-api.onrender.com
-
-  var FALLBACK_PASSWORD = 'admin123';
-  var TOKEN_KEY = 'ADMIN_TOKEN';
+  const API = 'https://lwg-api.onrender.com';   // ✅ your Render API base
+  const FALLBACK_PASSWORD = 'admin123';
+  const TOKEN_KEY = 'ADMIN_TOKEN';
 
   // nav highlight
   (function(){
-    var here = location.pathname.split('/').pop() || 'admin.html';
-    var dashLink = document.querySelector('[data-nav="dashboard"]');
+    const here = location.pathname.split('/').pop() || 'admin.html';
+    const dashLink = document.querySelector('[data-nav="dashboard"]');
     if (dashLink && /admin\.html$/i.test(here)) dashLink.classList.add('active');
   })();
 
   // ====== Helpers ======
-  function $(sel){ return document.querySelector(sel); }
+  const $ = (sel) => document.querySelector(sel);
   function toast(msg){
-    var el = $('#toast'); if(!el) return alert(msg);
+    const el = $('#toast'); if(!el) return alert(msg);
     el.textContent = String(msg || ''); el.style.display = 'block';
-    setTimeout(function(){ el.style.display='none'; }, 1800);
+    setTimeout(()=>{ el.style.display='none'; }, 1800);
   }
-  function money(n){ try{ return 'NLe ' + Number(n||0).toLocaleString(); }catch(e){ return 'NLe ' + (n||0); } }
-  function uuid(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('id-' + Math.random().toString(16).slice(2) + Date.now().toString(16)); }
-  function token(){ return localStorage.getItem(TOKEN_KEY) || ''; }
-  function setToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); }
-  function clearToken(){ localStorage.removeItem(TOKEN_KEY); }
+  const money = (n)=> {
+    try { return 'NLe ' + Number(n||0).toLocaleString(); }
+    catch(_) { return 'NLe ' + (n||0); }
+  };
+  const uuid = ()=> (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('id-' + Math.random().toString(16).slice(2) + Date.now().toString(16));
+  const token = ()=> localStorage.getItem(TOKEN_KEY) || '';
+  const setToken = (t)=> { if(t) localStorage.setItem(TOKEN_KEY, t); };
+  const clearToken = ()=> localStorage.removeItem(TOKEN_KEY);
 
   async function jsonFetch(url, options){
     const r = await fetch(url, options);
@@ -183,10 +185,14 @@
 
   // ====== Login (server + fallback) ======
   $('#login').addEventListener('click', async function(){
-    var u = $('#user').value.trim();
-    var p = $('#pass').value.trim();
+    const u = $('#user').value.trim();
+    const p = $('#pass').value.trim();
     $('#loginErr').style.display = 'none';
-    if (!u || !p){ $('#loginErr').textContent = 'Enter username and password.'; $('#loginErr').style.display='block'; return; }
+    if (!u || !p){
+      $('#loginErr').textContent = 'Enter username and password.';
+      $('#loginErr').style.display='block';
+      return;
+    }
     const res = await jsonFetch(API + '/api/admin/login', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -227,8 +233,8 @@
   }
 
   // ====== Store (localStorage, self-healing) ======
-  var LS_PRODUCTS = 'lwg_products';
-  var LS_ORDERS   = 'lwg_orders';
+  const LS_PRODUCTS = 'lwg_products';
+  const LS_ORDERS   = 'lwg_orders';
 
   function safeParse(key, fallback){
     try { return JSON.parse(localStorage.getItem(key) || ''); }
@@ -239,36 +245,35 @@
     }
   }
 
-  var Store = {
-    init: function(){
+  const Store = {
+    init(){
       if (!localStorage.getItem(LS_PRODUCTS)) localStorage.setItem(LS_PRODUCTS, '[]');
       if (!localStorage.getItem(LS_ORDERS))   localStorage.setItem(LS_ORDERS, '[]');
-      // heal if corrupted
       safeParse(LS_PRODUCTS, []);
       safeParse(LS_ORDERS,   []);
     },
-    products: function(){ return safeParse(LS_PRODUCTS, []); },
-    upsertProduct: function(p){
-      var arr = Store.products();
-      var idx = arr.findIndex(x => x.id === p.id);
+    products(){ return safeParse(LS_PRODUCTS, []); },
+    upsertProduct(p){
+      const arr = Store.products();
+      const idx = arr.findIndex(x => x.id === p.id);
       if (idx >= 0) arr[idx] = p; else arr.push(p);
       localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
     },
-    deleteProduct: function(id){
-      var arr = Store.products().filter(x => x.id !== id);
+    deleteProduct(id){
+      const arr = Store.products().filter(x => x.id !== id);
       localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
     },
-    orders: function(){ return safeParse(LS_ORDERS, []); },
-    setOrderStatus: function(id, status){
-      var arr = Store.orders();
-      for (var i=0;i<arr.length;i++){ if (arr[i].id === id){ arr[i].status = status; break; } }
+    orders(){ return safeParse(LS_ORDERS, []); },
+    setOrderStatus(id, status){
+      const arr = Store.orders();
+      for (let i=0;i<arr.length;i++){ if (arr[i].id === id){ arr[i].status = status; break; } }
       localStorage.setItem(LS_ORDERS, JSON.stringify(arr));
     }
   };
 
   Store.init();
 
-  // seed a sample local order once
+  // seed a sample local order once (for demo)
   if (Store.orders().length === 0) {
     localStorage.setItem(LS_ORDERS, JSON.stringify([{
       id: 'LWG-' + Math.random().toString(36).slice(2,8).toUpperCase(),
@@ -282,10 +287,10 @@
 
   // ====== UI: products ======
   function productCard(p){
-    var el = document.createElement('div'); el.className = 'card';
-    var img = p.image || '';
-    var safeTitle = String(p.title || '');
-    var safeDesc  = String(p.desc || '');
+    const el = document.createElement('div'); el.className = 'card';
+    const img = p.image || '';
+    const safeTitle = String(p.title || '');
+    const safeDesc  = String(p.desc || '');
     el.innerHTML =
       '<img src="'+ img +'" alt="'+ safeTitle +'" onerror="this.src=\'https://via.placeholder.com/600x400?text=No+Image\';">' +
       '<div class="body">' +
@@ -305,7 +310,7 @@
       if (confirm('Delete product?')){ Store.deleteProduct(p.id); loadProducts(); toast('Deleted'); }
     };
     el.querySelector('.edit').onclick = function(){
-      var f = $('#form');
+      const f = $('#form');
       f.id.value = p.id;
       f.title.value = p.title || '';
       f.price.value = Number(p.price || 0);
@@ -319,8 +324,8 @@
   }
 
   function loadProducts(){
-    var list = $('#list'); list.innerHTML = '';
-    var ps = Store.products();
+    const list = $('#list'); list.innerHTML = '';
+    const ps = Store.products();
     $('#count').textContent = (ps.length ? ps.length : 0) + ' item' + (ps.length===1?'':'s');
     if (ps.length === 0){
       list.innerHTML = '<p class="muted">No products yet. Use the form below to add one.</p>';
@@ -337,19 +342,19 @@
     loadProducts(); toast('Local products cleared');
   });
   $('#export').addEventListener('click', function(){
-    var blob = new Blob([JSON.stringify(Store.products(), null, 2)], {type:'application/json'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
+    const blob = new Blob([JSON.stringify(Store.products(), null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url; a.download = 'products.json'; a.click();
     URL.revokeObjectURL(url);
   });
   $('#import').addEventListener('change', function(e){
-    var file = e.target.files && e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     if (!file) return;
-    var rd = new FileReader();
+    const rd = new FileReader();
     rd.onload = function(){
       try{
-        var arr = JSON.parse(rd.result);
+        const arr = JSON.parse(rd.result);
         if (!Array.isArray(arr)) throw new Error('JSON must be an array');
         localStorage.setItem(LS_PRODUCTS, JSON.stringify(arr));
         loadProducts();
@@ -363,11 +368,11 @@
   // ====== Save / Edit form ======
   $('#form').addEventListener('submit', function(e){
     e.preventDefault();
-    var fd = new FormData(e.target);
-    var data = {}; fd.forEach((v,k)=> data[k]=v);
+    const fd = new FormData(e.target);
+    const data = {}; fd.forEach((v,k)=> data[k]=v);
 
-    var isEdit = !!data.id;
-    var p = {
+    const isEdit = !!data.id;
+    const p = {
       id: data.id || uuid(),
       title: String(data.title || '').trim(),
       price: Number(data.price || 0),
@@ -377,13 +382,11 @@
     };
     if (!p.title){ toast('Title is required'); return; }
 
-    // write + refresh UI immediately
-    Store.upsertProduct(p);
-    loadProducts();                        // 🔄 refresh list NOW
+    Store.upsertProduct(p);   // write
+    loadProducts();           // refresh immediately
     e.target.reset();
     $('#cancelEdit').style.display = 'none';
     toast(isEdit ? 'Updated' : 'Saved');
-    // optional: scroll to top where the list is
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
@@ -395,24 +398,24 @@
 
   // ====== Local orders table ======
   function renderOrders(){
-    var orders = Store.orders().slice().reverse();
-    var table = $('#ordersTable');
+    const orders = Store.orders().slice().reverse();
+    const table = $('#ordersTable');
     if (!orders.length){
       table.innerHTML = '<tr><td class="muted">No orders yet.</td></tr>';
       return;
     }
-    var header =
+    const header =
       '<thead><tr>' +
         '<th>Ref</th><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th>' +
       '</tr></thead>';
-    var rows = orders.map(function(o){
-      var itemsStr = (o.items || []).map(function(i){
-        var t = (i.product && i.product.title) ? i.product.title : 'Item';
+    const rows = orders.map(function(o){
+      const itemsStr = (o.items || []).map(function(i){
+        const t = (i.product && i.product.title) ? i.product.title : 'Item';
         return t + ' × ' + (i.qty || 0);
       }).join(', ');
-      var date = (new Date(o.at)).toLocaleString();
-      var name = (o.info && o.info.name) ? o.info.name : '';
-      var ph   = (o.info && o.info.phone) ? o.info.phone : '';
+      const date = (new Date(o.at)).toLocaleString();
+      const name = (o.info && o.info.name) ? o.info.name : '';
+      const ph   = (o.info && o.info.phone) ? o.info.phone : '';
       return (
         '<tr>' +
           '<td>' + (o.id || '') + '</td>' +
@@ -430,16 +433,16 @@
     }).join('');
     table.innerHTML = header + '<tbody>' + rows + '</tbody>';
 
-    var acts = table.querySelectorAll('.act');
-    for (var i=0;i<acts.length;i++){
-      acts[i].addEventListener('click', function(e){
-        var id = e.currentTarget.getAttribute('data-id');
-        var status = e.currentTarget.getAttribute('data-status');
+    const acts = table.querySelectorAll('.act');
+    acts.forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        const id = e.currentTarget.getAttribute('data-id');
+        const status = e.currentTarget.getAttribute('data-status');
         Store.setOrderStatus(id, status);
         renderOrders();
         toast('Order ' + id + ' → ' + status);
       });
-    }
+    });
   }
 
   function initPanel(){
@@ -453,4 +456,3 @@
 </script>
 </body>
 </html>
-

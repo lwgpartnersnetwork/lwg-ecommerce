@@ -1,4 +1,4 @@
-<!doctype html> 
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -292,7 +292,7 @@
     const safeTitle = String(p.title || '');
     const safeDesc  = String(p.desc || '');
     el.innerHTML =
-      '<img src="'+ img +'" alt="'+ safeTitle +'" onerror="this.src=\'https://via.placeholder.com/600x400?text=No+Image\';">' +
+      '<img class="pimg" src="'+ img +'" alt="'+ safeTitle +'">' +
       '<div class="body">' +
         '<strong>' + safeTitle + '</strong>' +
         '<div class="row" style="justify-content:space-between">' +
@@ -305,6 +305,12 @@
           '<button class="btn danger del">Delete</button>' +
         '</div>' +
       '</div>';
+
+    // safer image fallback (no inline onerror needed; works with strict CSP)
+    const im = el.querySelector('.pimg');
+    im.addEventListener('error', () => {
+      im.src = 'https://via.placeholder.com/600x400?text=No+Image';
+    });
 
     el.querySelector('.del').onclick = function(){
       if (confirm('Delete product?')){ Store.deleteProduct(p.id); loadProducts(); toast('Deleted'); }

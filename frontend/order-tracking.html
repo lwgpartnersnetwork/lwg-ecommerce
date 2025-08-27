@@ -10,41 +10,61 @@
   <meta http-equiv="Expires" content="0">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    :root{--line:#1f2937;--bg:#0b1220;--muted:#94a3b8;--text:#e5e7eb;--brand:#1d4ed8;--brand2:#1e40af}
-    body{background:var(--bg);color:var(--text)}
+    :root{--line:#1f2937;--bg:#0b1220;--muted:#94a3b8;--text:#e5e7eb;--brand:#1d4ed8;--brand2:#1e40af;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
     .card{max-width:760px;margin:24px auto;background:#0b1220;border:1px solid var(--line);border-radius:16px;padding:18px}
+    h2,h3{line-height:1.2;margin:0 0 8px}
     .row{display:flex;justify-content:space-between;gap:12px;margin:6px 0;flex-wrap:wrap}
     .grid{display:grid;gap:12px}
     @media(min-width:600px){.grid{grid-template-columns:1fr 1fr}}
+    .items{padding-left:18px;margin:6px 0}
     .items li{margin:4px 0}
+    .status{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .status-pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#0f172a}
     .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;background:#6b7280}
-    .status-dot.active{background:#22c55e}
-    .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .status-dot.active{background:var(--ok)}
+    .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb;outline:none}
+    .input:focus{border-color:var(--brand)}
     .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--brand2);background:var(--brand);color:#e5e7eb;cursor:pointer}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
     .btn.ghost{background:#0f172a;border:1px solid #374151}
     .muted{color:var(--muted)}
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     .small{font-size:12px}
+    .skeleton{background:linear-gradient(90deg,#0f172a 25%,#111827 37%,#0f172a 63%);background-size:400% 100%;animation:shimmer 1.2s infinite;min-height:14px;border-radius:8px}
+    @keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+    .label{display:flex;align-items:center;gap:6px}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2 style="margin-top:4px">Track your order</h2>
+  <div class="card" role="region" aria-labelledby="hdr">
+    <h2 id="hdr" style="margin-top:4px">Track your order</h2>
     <p class="muted">Enter your <b>reference</b> and the <b>phone</b> or <b>email</b> you used at checkout.</p>
+
     <form id="trackForm" class="grid" novalidate>
       <div>
-        <label class="small muted">Reference</label>
-        <input id="ref" class="input" placeholder="e.g. LWG-ABC123" autocomplete="off" required/>
+        <label for="ref" class="small muted label">
+          <span>Reference</span>
+        </label>
+        <input id="ref" class="input" placeholder="e.g. LWG-ABC123" autocomplete="off" required
+               inputmode="latin" spellcheck="false" aria-describedby="refHelp"/>
+        <div id="refHelp" class="small muted" style="margin-top:4px">Usually looks like <b>LWG-XXXXX</b>.</div>
       </div>
+
       <div>
-        <label class="small muted">Phone (E.164) or Email</label>
-        <input id="contact" class="input" placeholder="+232… or name@example.com" autocomplete="off" required/>
+        <label for="contact" class="small muted label">
+          <span>Phone (E.164) or Email</span>
+        </label>
+        <input id="contact" class="input" placeholder="+232… or name@example.com" autocomplete="off" required
+               inputmode="email" spellcheck="false" aria-describedby="ctHelp"/>
+        <div id="ctHelp" class="small muted">Phone must start with “+” (example: <b>+2327…</b>)</div>
       </div>
-      <div class="actions">
-        <button id="go" class="btn" type="submit">Track</button>
+
+      <div class="actions" style="grid-column:1/-1">
+        <button id="go" class="btn" type="submit" aria-live="polite">Track</button>
         <a id="dl" class="btn ghost" href="#" download style="display:none">Download receipt (PDF)</a>
       </div>
-      <div id="hint" class="muted small" style="display:none">Tip: phone must start with “+” (example: <b>+2327…</b>)</div>
     </form>
   </div>
 
@@ -52,125 +72,181 @@
 
 <script>
 (function(){
-  // === CONFIG (Prod API) ===
-  const API = 'https://lwg-api.onrender.com';
+  // === CONFIG ===
+  const API = 'https://lwg-api.onrender.com'; // production
+  const API_TIMEOUT_MS = 15000;
 
   // === Helpers ===
   const $ = s => document.querySelector(s);
   const money = n => 'NLe ' + Number(n||0).toLocaleString();
-  const iso = d => { try { return new Date(d).toLocaleString(); } catch(e){ return d; } };
-  const isEmail = v => /\S+@\S+\.\S+/.test(String(v||''));
+  const iso = d => { try { return new Date(d).toLocaleString(); } catch(e){ return d ?? ''; } };
+  const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim());
   const normalizePhone = v => {
     if (!v) return '';
-    // keep + and digits only, ensure leading +
     const digits = String(v).replace(/[^\d+]/g,'').replace(/^\+?/,'');
     return digits ? ('+' + digits) : '';
   };
   const get = (obj, path, fb) => {
-    try {
-      return path.split('.').reduce((a,k)=> (a && a[k] !== undefined ? a[k] : undefined), obj) ?? fb;
-    } catch { return fb; }
+    try { return path.split('.').reduce((a,k)=> (a && a[k] !== undefined ? a[k] : undefined), obj) ?? fb; }
+    catch { return fb; }
   };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   function renderStatus(status){
     const steps = ['New','Processing','Shipped','Completed','Cancelled'];
-    return '<div>' + steps.map(s =>
-      '<span class="status-dot'+(s===status?' active':'')+'"></span>'+s
-    ).join(' · ') + '</div>';
+    const stepHtml = steps.map(s =>
+      '<span class="status-pill">'+
+        '<span class="status-dot'+(s===status?' active':'')+'"></span>'+s+
+      '</span>'
+    ).join('');
+    return '<div class="status" aria-label="Order status">'+ stepHtml +'</div>';
   }
 
-  // === UI bits ===
   function setLoading(on){
     const btn = $('#go'); if (!btn) return;
     btn.disabled = !!on;
     btn.textContent = on ? 'Checking…' : 'Track';
   }
-  function showHint(on){ $('#hint').style.display = on ? 'block' : 'none'; }
+
+  function skeletonCard(){
+    const s = n => `<div class="row"><div class="skeleton" style="width:120px"></div><div class="skeleton" style="width:${n}%"></div></div>`;
+    return `
+      <h3 class="skeleton" style="height:22px;width:180px;margin-top:2px"></h3>
+      ${s(40)}${s(60)}${s(35)}${s(50)}${s(30)}${s(25)}
+      <div style="margin-top:10px"><div class="skeleton" style="height:18px;width:90px;margin-bottom:6px"></div>
+        <ul class="items">
+          <li><span class="skeleton" style="height:14px;width:200px;display:inline-block"></span></li>
+          <li><span class="skeleton" style="height:14px;width:260px;display:inline-block"></span></li>
+        </ul>
+      </div>
+    `;
+  }
+
+  // Unified fetch with timeout + better error text
+  async function apiFetch(url, opts={}){
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(new DOMException('Timeout','AbortError')), API_TIMEOUT_MS);
+    try{
+      const resp = await fetch(url, { cache:'no-store', ...opts, signal: ctl.signal });
+      let bodyText = '';
+      try { bodyText = await resp.text(); } catch {}
+      let json = null;
+      try { json = bodyText ? JSON.parse(bodyText) : null; } catch {}
+      return { resp, json, text: bodyText };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // Optional: quick health check to provide clearer error when backend cold-starts
+  async function ensureApiWarm(){
+    try {
+      // try a cheap, cache-busting HEAD (falls back to GET if HEAD not supported)
+      const url = `${API}/api/health?_=${Date.now()}`;
+      let r = await apiFetch(url, { method:'HEAD' });
+      if (!r.resp.ok && r.resp.status !== 404) {
+        // Some backends won't have /api/health; tolerate 404 as "up"
+        await sleep(200); // tiny delay for cold start
+      }
+    } catch {}
+  }
 
   // === Main ===
   async function track(e){
     if (e) e.preventDefault();
+
     const ref = $('#ref').value.trim();
     const raw = $('#contact').value.trim();
-    if (!ref || !raw){
-      Swal.fire({icon:'info', title:'Enter both fields'});
+
+    if (!ref){
+      Swal.fire({icon:'info', title:'Reference required', text:'Please enter your order reference.'});
+      return;
+    }
+    if (!raw){
+      Swal.fire({icon:'info', title:'Contact required', text:'Enter the phone (with +) or email you used.'});
       return;
     }
 
-    // build query
-    const qs = new URLSearchParams({ ref });
     let identity = raw;
+    const qs = new URLSearchParams({ ref });
+
     if (isEmail(raw)) {
       qs.set('email', raw);
-      showHint(false);
     } else {
       identity = normalizePhone(raw);
       if (!identity.startsWith('+')) {
-        showHint(true);
         Swal.fire({icon:'info', title:'Phone format', text:'Start with + and country code (e.g. +232...)'});
         return;
       }
       qs.set('phone', identity);
-      showHint(false);
     }
+
+    setLoading(true);
+    const resultEl = $('#result');
+    resultEl.innerHTML = skeletonCard();
+    resultEl.style.display = 'block';
+
+    // health check (best-effort)
+    await ensureApiWarm();
 
     // fetch
-    setLoading(true);
-    let resp, data;
-    try {
-      resp = await fetch(`${API}/api/orders/track?${qs}`, { cache:'no-store' });
+    let r;
+    try{
+      r = await apiFetch(`${API}/api/orders/track?${qs}`);
     } catch(err){
       setLoading(false);
-      Swal.fire({icon:'error', title:'Network error', text:String(err)});
-      return;
-    }
-
-    try {
-      data = await resp.json();
-    } catch {
-      setLoading(false);
-      Swal.fire({icon:'error', title:'Invalid server response'});
+      resultEl.style.display = 'none';
+      Swal.fire({icon:'error', title:'Network error', text:String(err && err.message || err)});
       return;
     }
 
     setLoading(false);
 
-    // handle errors
-    if (resp.status === 429){
+    const { resp, json, text } = r;
+
+    // common rate-limit / service errors
+    if (resp && resp.status === 429){
+      resultEl.style.display = 'none';
       Swal.fire({icon:'warning', title:'Too many requests', text:'Please wait a minute and try again.'});
       return;
     }
-    if (resp.status === 503){
+    if (resp && resp.status === 503){
+      resultEl.style.display = 'none';
       Swal.fire({icon:'info', title:'Orders database unavailable', text:'Please try again later.'});
       return;
     }
-    if (!resp.ok || !data || data.ok !== true){
-      const msg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
-      Swal.fire({icon:'error', title:'Not found', text: msg});
-      $('#result').style.display = 'none';
+
+    // parse error message
+    const serverMsg = (json && (json.error || json.message)) || (text && text.slice(0,160)) || ('HTTP ' + (resp ? resp.status : '?'));
+
+    if (!resp || !resp.ok || !json || json.ok !== true){
+      resultEl.style.display = 'none';
+      Swal.fire({icon:'error', title:'Not found', text: serverMsg});
       $('#dl').style.display = 'none';
       return;
     }
 
     // success
-    const o = data.order || {};
+    const o = json.order || {};
     const itemsArr = Array.isArray(o.items) ? o.items : [];
     const itemsHTML = itemsArr.map(x => {
       const t = get(x,'product.title','Item');
       const p = get(x,'product.price',0);
       const q = x && x.qty ? x.qty : 0;
       return `<li>${t} × ${q} — ${money(p)}</li>`;
-    }).join('');
+    }).join('') || '<li class="muted">No line items</li>';
 
     const total = get(o,'info.grandTotal', get(o,'info.subtotal', 0));
     const cust  = get(o,'info.name','');
     const contactOut = get(o,'info.phone', get(o,'info.email',''));
     const zone  = get(o,'info.deliveryZone','');
+    const payment = (o.paymentStatus || '').toString();
 
     const html = `
       <h3 style="margin-top:2px">Order ${o.ref || ''}</h3>
       <div class="row"><div><b>Date</b></div><div>${iso(o.createdAt)}</div></div>
       <div class="row"><div><b>Status</b></div><div>${renderStatus(o.status)}</div></div>
-      <div class="row"><div><b>Payment</b></div><div>${o.paymentStatus || ''}</div></div>
+      <div class="row"><div><b>Payment</b></div><div>${payment}</div></div>
       <div class="row"><div><b>Customer</b></div><div>${cust}</div></div>
       <div class="row"><div><b>Contact</b></div><div>${contactOut}</div></div>
       <div class="row"><div><b>Delivery</b></div><div>${zone}</div></div>
@@ -178,11 +254,10 @@
       <div style="margin-top:10px"><b>Items</b><ul class="items">${itemsHTML}</ul></div>
     `;
 
-    const result = $('#result');
-    result.innerHTML = html;
-    result.style.display = 'block';
+    resultEl.innerHTML = html;
+    resultEl.style.display = 'block';
 
-    // prepare receipt PDF link
+    // Receipt link
     const dl = $('#dl');
     const qs2 = new URLSearchParams({ ref: o.ref });
     if (isEmail(identity)) qs2.set('email', identity); else qs2.set('phone', identity);

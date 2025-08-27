@@ -16,7 +16,7 @@
     .btn.primary{background:#1d4ed8;border-color:#1e40af}
     .btn.good{background:#16a34a;border-color:#15803d}
     .btn.ghost{background:transparent}
-    .btn.danger{background:#b91c1c;border-color:#991b1b}
+    .hdr{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
     .row{display:flex;gap:8px;align-items:center}
     .muted{color:#94a3b8}
     table{width:100%;border-collapse:collapse}
@@ -43,6 +43,7 @@
       <button id="login" class="btn primary">Login</button>
       <button id="demo" class="btn ghost" title="Quick demo login (client only)">Demo login</button>
       <button id="logout" class="btn ghost" title="Clear token">Logout</button>
+      <a id="csv" class="btn ghost" href="#" download>Export CSV</a>
     </div>
   </div>
 
@@ -74,10 +75,9 @@
 
 <script>
 (function(){
-  // ✅ API base
   const API = 'https://lwg-api.onrender.com';
 
-  // Demo creds (client-only)
+  // Demo creds (client-side only)
   const DEMO_USER = 'admin';
   const DEMO_PASS = 'admin123';
 
@@ -93,19 +93,20 @@
     return '<span class="pill '+cls+'">'+(s||'Pending')+'</span>';
   }
 
+  // robust fetch (JSON or text)
   async function jsonFetch(url, options){
     const r = await fetch(url, options);
     const ct = (r.headers.get('content-type') || '').toLowerCase();
 
     if (ct.includes('application/json')){
       const j = await r.json().catch(()=>null);
-      return { ok: r.ok && !!j && (j.ok !== false || j.token), status: r.status, data: j, raw: null };
+      return { ok: r.ok && !!j && (j.ok !== false), status: r.status, data: j, raw: null };
     }
     const txt = await r.text().catch(()=> '');
     return { ok: r.ok, status: r.status, data: null, raw: txt };
   }
 
-  // Login (server)
+  // Auth: server login
   $('#login').onclick = async function(){
     try{
       const res = await jsonFetch(API + '/api/admin/login', {
@@ -125,13 +126,13 @@
     }
   };
 
-  // Demo unlock (client-only)
+  // Auth: demo login (client-only token)
   $('#demo').onclick = function(){
     const u = $('#user').value.trim() || DEMO_USER;
     const p = $('#pass').value.trim() || DEMO_PASS;
     if (u === DEMO_USER && p === DEMO_PASS){
-      setToken('DEMO_TOKEN');
-      Swal.fire({icon:'success', title:'Demo unlocked', text:'Use real server login for updates/email.', timer:1800, showConfirmButton:false});
+      setToken('DEMO_TOKEN'); // server will reject protected actions with this
+      Swal.fire({icon:'success', title:'Demo unlocked', text:'View the UI; updating will still require real login.', timer:1800, showConfirmButton:false});
       load(1);
     } else {
       Swal.fire({icon:'info', title:'Use admin / admin123 for demo'});
@@ -143,8 +144,8 @@
   // Pagination state
   var state = { page: 1, pageSize: 20, total: 0, lastQuery:'' };
 
-  async function load(page){
-    if (page) state.page = page;
+  // Build current query string from filters
+  function buildQS(page){
     var qs = new URLSearchParams();
     var q = $('#q').value.trim();
     var st = $('#status').value;
@@ -157,10 +158,16 @@
     if (pst) qs.set('pstatus', pst);
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
-    qs.set('page', state.page);
+    qs.set('page', page || state.page);
     qs.set('pageSize', state.pageSize);
+    return qs.toString();
+  }
 
-    state.lastQuery = qs.toString();
+  // Load orders
+  async function load(page){
+    if (page) state.page = page;
+
+    state.lastQuery = buildQS(state.page);
 
     try{
       const res = await jsonFetch(API + '/api/admin/orders?' + state.lastQuery, {
@@ -178,6 +185,11 @@
       render(res.data.orders || []);
       renderPager();
       $('#totalInfo').textContent = state.total + ' total';
+
+      // CSV link
+      $('#csv').href = API + '/api/admin/orders/export.csv?' + buildQS(1);
+      $('#csv').download = 'orders.csv';
+
     }catch(e){
       $('#out').innerHTML = '<p class="muted">Error: '+ String(e.message||e) +'</p>';
       $('#pager').style.display = 'none';
@@ -256,7 +268,7 @@
             '<div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-top:8px">' +
               '<div style="min-width:260px">' +
                 '<div><b>Payment method:</b> '+ payMethod +'</div>' +
-                '<div><b>Delivery area:</b> '+ delivery + (o.info && (o.info.deliveryFee!=null) ? (' ('+money(o.info.deliveryFee)+')') : '') +'</div>' +
+                '<div><b>Delivery area:</b> '+ delivery + (o.info && (o.info.deliveryFee!=null) ? (' (NLe '+Number(o.info.deliveryFee)+')') : '') +'</div>' +
                 '<div><b>Subtotal:</b> '+ (o.info ? money(o.info.subtotal||0) : 'N/A') +'</div>' +
                 '<div><b>Total:</b> <b>'+ money(total) +'</b></div>' +
               '</div>' +
@@ -276,7 +288,11 @@
         '<tbody>'+ rows +'</tbody>' +
       '</table>';
 
-    document.querySelectorAll('.upd').forEach(btn => btn.addEventListener('click', updateOrder));
+    // Wire update buttons
+    var buttons = document.querySelectorAll('.upd');
+    for (var i=0;i<buttons.length;i++){
+      buttons[i].addEventListener('click', updateOrder);
+    }
   }
 
   async function updateOrder(e){
@@ -316,6 +332,7 @@
     await Swal.fire({icon:'error', title:'Update failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+msg+'</pre>'});
   }
 
+  // Auto-load if already logged in
   if (token()) load(1);
 })();
 </script>

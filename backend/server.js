@@ -1,3 +1,4 @@
+// server.js
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -10,13 +11,30 @@ import fetch from 'node-fetch';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';
-import PDFDocument from 'pdfkit'; // PDF receipts
+import PDFDocument from 'pdfkit';
 
-function noStore(req, res, next){
+/* =========================
+   Small helpers
+   ========================= */
+function noStore(_req, res, next){
   res.setHeader('Cache-Control','no-store, no-cache, must-revalidate, max-age=0');
   res.setHeader('Pragma','no-cache');
   res.setHeader('Expires','0');
   next();
+}
+const esc = (s='') => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const kvBlock = (obj) => Object.entries(obj).map(([k,v]) => `- ${k}: ${v}`).join('\n');
+const kvHTML  = (obj) => `<ul style="margin-top:6px">${Object.entries(obj).map(([k,v])=>`<li><b>${esc(k)}:</b> ${esc(v)}</li>`).join('')}</ul>`;
+function get(obj, path, fallback) {
+  try {
+    const parts = String(path || '').split('.');
+    let cur = obj;
+    for (let i=0;i<parts.length;i++){
+      if (!cur || typeof cur !== 'object') return fallback;
+      cur = cur[parts[i]];
+    }
+    return (cur == null ? fallback : cur);
+  } catch { return fallback; }
 }
 
 /* =========================
@@ -48,6 +66,7 @@ const {
 
   // MongoDB
   MONGO_URI,
+  MONGO_DB, // <-- optional (db name)
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME,
@@ -62,20 +81,9 @@ const {
 
 const app = express();
 
-app.get('/api/db-ping', async (_req, res) => {
-  try {
-    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ ok: false, error: 'DB not connected' });
-    }
-    await mongoose.connection.db.admin().command({ ping: 1 });
-    res.json({ ok: true, state: mongoose.connection.readyState });
-  } catch (e) {
-    res.status(500).json({ ok: false, error: e?.message || String(e) });
-  }
-});
-
-
-// Hardening + essentials
+/* =========================
+   Hardening + essentials
+   ========================= */
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
@@ -88,7 +96,6 @@ const allowedOrigins = (ALLOW_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
-
 const corsOptions = {
   origin(origin, cb) {
     if (!origin) return cb(null, true);
@@ -123,7 +130,13 @@ if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
   });
 }
 
-// Minimal env sanity log
+/* =========================
+   Env sanity log (safe)
+   ========================= */
+function maskUri(uri){
+  if (!uri) return '';
+  return uri.replace(/:\/\/([^:]+):([^@]+)@/,'://$1:****@');
+}
 console.log('[ENV CHECK]',
   'SMTP_USER=', SMTP_USER,
   'SMTP_PASS_LEN=', SMTP_PASS ? SMTP_PASS.length : 0,
@@ -132,23 +145,61 @@ console.log('[ENV CHECK]',
   'WA_PHONE_ID=', WHATSAPP_PHONE_ID,
   'ADMIN_WA=', ADMIN_WA,
   'TOKEN_SET=', !!WHATSAPP_TOKEN,
-  'MONGO_URI_SET=', !!MONGO_URI,
+  'MONGO_URI=', maskUri(MONGO_URI),
+  'MONGO_DB=', MONGO_DB || '(none)',
   'ALLOW_ORIGINS=', ALLOW_ORIGINS
 );
 
 /* =========================
-   MONGO (Orders)
+   Mongo (Orders)
    ========================= */
 if (!MONGO_URI) {
   console.warn('⚠️  MONGO_URI not set. Orders will fail to persist.');
 } else {
-  mongoose.connect(MONGO_URI).then(() => {
-    console.log('MongoDB connected');
-  }).catch(err => {
-    console.error('MongoDB connect error:', (err && err.message) || err);
-  });
+  // Print what DB name we’re actually going to use (helps with Atlas users scoped to a DB)
+  const pathDb = (() => {
+    try {
+      // crude parse: mongodb+srv://.../<db>?...
+      const m = MONGO_URI.match(/mongodb\+srv:\/\/[^/]+\/([^?\/]+)?/i);
+      return m && m[1] ? m[1] : '';
+    } catch { return ''; }
+  })();
+
+  console.log('[Mongo] Connecting…',
+    'uri=', maskUri(MONGO_URI),
+    'dbFromURI=', pathDb || '(none)',
+    'MONGO_DB=', MONGO_DB || '(none)');
+
+  mongoose.set('strictQuery', false);
+  mongoose.connect(MONGO_URI, {
+    dbName: MONGO_DB || pathDb || undefined,  // prefer explicit DB
+    serverSelectionTimeoutMS: 20000,
+    // If your user is created in "admin", authSource can help — most Atlas users don’t need it:
+    // authSource: 'admin',
+  })
+  .then(() => console.log('[Mongo] connected ✅'))
+  .catch(err => console.error('[Mongo] connect error →', err?.message || err));
 }
 
+mongoose.connection.on('error', (e) => console.error('[Mongo] runtime error →', e?.message || e));
+mongoose.connection.on('disconnected', () => console.warn('[Mongo] disconnected'));
+
+/* Quick DB ping route (for your browser) */
+app.get('/api/db-ping', async (_req, res) => {
+  try {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ ok:false, error:'DB not connected', state: mongoose.connection?.readyState ?? -1 });
+    }
+    await mongoose.connection.db.admin().command({ ping: 1 });
+    res.json({ ok:true, state: mongoose.connection.readyState });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: e?.message || String(e) });
+  }
+});
+
+/* =========================
+   Mongoose schema/model
+   ========================= */
 const OrderSchema = new mongoose.Schema({
   ref: String,
   createdAt: { type: Date, default: Date.now },
@@ -174,7 +225,7 @@ const OrderSchema = new mongoose.Schema({
 const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
 
 /* =========================
-   EMAIL (Gmail App Password)
+   Email (Gmail App Password)
    ========================= */
 const mailer = nodemailer.createTransport({
   host: SMTP_HOST,
@@ -182,11 +233,10 @@ const mailer = nodemailer.createTransport({
   secure: Number(SMTP_PORT) === 465,
   auth: { user: SMTP_USER, pass: SMTP_PASS }
 });
-
 mailer.verify((err) => {
   if (err) {
     console.error('SMTP VERIFY FAIL:', (err && err.message) || err);
-    console.error('Hint: 2-Step ON + 16-char App Password, or run DisplayUnlockCaptcha');
+    console.error('Hint: 2-Step ON + App Password, or run DisplayUnlockCaptcha');
   } else {
     console.log(`SMTP OK (${SMTP_PORT} ${Number(SMTP_PORT) === 465 ? 'SSL' : 'TLS'})`);
   }
@@ -196,7 +246,6 @@ mailer.verify((err) => {
    WhatsApp helpers
    ========================= */
 const WAPI_VERSION = 'v23.0';
-
 async function sendWhatsAppText({ to, text }) {
   if (!to || !WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) return;
   const phoneId = String(WHATSAPP_PHONE_ID).replace(/[^\d]/g, '');
@@ -204,19 +253,10 @@ async function sendWhatsAppText({ to, text }) {
   const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body: String(text || '').slice(0, 4096) }
-    })
+    body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: String(text || '').slice(0, 4096) } })
   });
-  if (!r.ok) {
-    const t = await r.text().catch(()=> '');
-    console.error('WhatsApp TEXT error:', r.status, t);
-  }
+  if (!r.ok) console.error('WhatsApp TEXT error:', r.status, await r.text().catch(()=> ''));
 }
-
 async function sendWhatsAppTemplate({ to, template, lang = WA_LANG, components = [] }) {
   if (!to || !WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID || !template) return false;
   const phoneId = String(WHATSAPP_PHONE_ID).replace(/[^\d]/g, '');
@@ -224,23 +264,14 @@ async function sendWhatsAppTemplate({ to, template, lang = WA_LANG, components =
   const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: { name: template, language: { code: lang }, components }
-    })
+    body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'template', template: { name: template, language: { code: lang }, components } })
   });
-  if (!r.ok) {
-    const t = await r.text().catch(()=> '');
-    console.error('WhatsApp TEMPLATE error:', r.status, t);
-    return false;
-  }
+  if (!r.ok) { console.error('WhatsApp TEMPLATE error:', r.status, await r.text().catch(()=> '')); return false; }
   return true;
 }
 
 /* =========================
-   CONSTANTS / HELPERS
+   Constants
    ========================= */
 const DELIVERY_ZONES = {
   'Pick-up (No delivery)': 0,
@@ -251,23 +282,9 @@ const DELIVERY_ZONES = {
 };
 const feeFromZone = (z) => DELIVERY_ZONES[z] ?? 0;
 
-const esc = (s='') => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-const kvBlock = (obj) => Object.entries(obj).map(([k,v]) => `- ${k}: ${v}`).join('\n');
-const kvHTML  = (obj) => `<ul style="margin-top:6px">${Object.entries(obj).map(([k,v])=>`<li><b>${esc(k)}:</b> ${esc(v)}</li>`).join('')}</ul>`;
-
-function get(obj, path, fallback) {
-  try {
-    const parts = String(path || '').split('.');
-    let cur = obj;
-    for (let i=0;i<parts.length;i++){
-      if (!cur || typeof cur !== 'object') return fallback;
-      cur = cur[parts[i]];
-    }
-    return (cur == null ? fallback : cur);
-  } catch { return fallback; }
-}
-
-// Build a PDF invoice buffer
+/* =========================
+   PDF builder
+   ========================= */
 async function buildInvoicePdf(order) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 36 });
@@ -286,7 +303,6 @@ async function buildInvoicePdf(order) {
     const deliveryFee = get(order, 'info.deliveryFee', 0);
     const grandTotal = get(order, 'info.grandTotal', subtotal + deliveryFee);
 
-    // Header
     doc.fontSize(20).text('LWG Partners Network', { align: 'left' });
     doc.moveDown(0.2).fontSize(10).fillColor('#555').text('Creating Impact Globally');
     doc.moveDown(1).fillColor('#000').fontSize(16).text('Invoice / Order Receipt', { align: 'right' });
@@ -294,7 +310,6 @@ async function buildInvoicePdf(order) {
     doc.text('Date: ' + new Date(order.createdAt || Date.now()).toLocaleString(), { align: 'right' });
     doc.moveDown();
 
-    // Bill To
     doc.fontSize(12).text('Bill To:');
     doc.fontSize(11).text(name);
     if (phone) doc.text(phone);
@@ -303,7 +318,6 @@ async function buildInvoicePdf(order) {
     if (zone)  doc.text('Delivery: ' + zone);
     doc.moveDown();
 
-    // Items
     doc.fontSize(12).text('Items', { underline: true });
     doc.moveDown(0.5);
     const items = Array.isArray(order.items) ? order.items : [];
@@ -325,7 +339,7 @@ async function buildInvoicePdf(order) {
 }
 
 /* =========================
-   Zod schemas
+   Zod validation
    ========================= */
 const ItemSchema = z.object({
   id: z.string(),
@@ -348,7 +362,6 @@ const OrderInfoSchema = z.object({
   grandTotal: z.number().optional(),
   payment_details: z.record(z.string()).optional()
 }).passthrough();
-
 const IncomingOrderSchema = z.object({
   id: z.string().optional(),
   items: z.array(ItemSchema).min(1),
@@ -362,7 +375,7 @@ const ProofSchema = z.object({
 }).optional();
 
 /* =========================
-   HEALTH
+   Health
    ========================= */
 app.get('/', (_req, res) => res.json({ ok: true, name: 'LWG Notifier 2.0' }));
 
@@ -382,29 +395,21 @@ app.post('/api/test-email', async (_req, res) => {
   }
 });
 
-/* WhatsApp test endpoints */
+/* WhatsApp test */
 app.post('/api/test-wa', async (req, res) => {
   try {
     const to = (req.body && req.body.to) || ADMIN_WA;
-    await sendWhatsAppText({
-      to,
-      text: 'LWG Notifier • WhatsApp test ✅'
-    });
+    await sendWhatsAppText({ to, text: 'LWG Notifier • WhatsApp test ✅' });
     res.json({ ok: true, to });
   } catch (e) {
     console.error('Test WA error:', e?.message || e);
     res.status(500).json({ ok: false, error: e?.message || 'WA failed' });
   }
 });
-
-// GET version so you can test in a browser: /api/test-wa?to=+23272146015
 app.get('/api/test-wa', async (req, res) => {
   try {
     const to = req.query.to || ADMIN_WA;
-    await sendWhatsAppText({
-      to,
-      text: 'LWG Notifier • WhatsApp test ✅ (GET)'
-    });
+    await sendWhatsAppText({ to, text: 'LWG Notifier • WhatsApp test ✅ (GET)' });
     res.json({ ok: true, to });
   } catch (e) {
     console.error('Test WA error:', e?.message || e);
@@ -413,7 +418,7 @@ app.get('/api/test-wa', async (req, res) => {
 });
 
 /* =========================
-   ADMIN AUTH + LIST/UPDATE/EXPORT
+   Admin auth + list/update/export
    ========================= */
 function requireAdmin(req, res, next) {
   const auth = req.headers.authorization || '';
@@ -421,7 +426,6 @@ function requireAdmin(req, res, next) {
   if (token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   next();
 }
-
 app.post('/api/admin/login', (req, res) => {
   const { user, pass } = req.body || {};
   if (user === ADMIN_USER && pass === ADMIN_PASS) return res.json({ ok: true, token: ADMIN_TOKEN });
@@ -431,7 +435,9 @@ app.post('/api/admin/login', (req, res) => {
 // GET /api/admin/orders?status=&pstatus=&q=&from=&to=&page=&pageSize=
 app.get('/api/admin/orders', requireAdmin, async (req, res) => {
   try {
-    if (!MONGO_URI) return res.json({ ok: true, orders: [] });
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.json({ ok: true, total: 0, orders: [] });
+    }
     const { status, pstatus, q, from, to, page = 1, pageSize = 20 } = req.query;
 
     const filter = {};
@@ -462,7 +468,6 @@ app.get('/api/admin/orders', requireAdmin, async (req, res) => {
   }
 });
 
-// CSV export (same filters)
 app.get('/api/admin/orders/export.csv', requireAdmin, async (req, res) => {
   try {
     const { status, pstatus, q, from, to } = req.query;
@@ -519,7 +524,7 @@ app.get('/api/admin/orders/export.csv', requireAdmin, async (req, res) => {
   }
 });
 
-// PATCH /api/admin/orders/:id  (update status/paymentStatus, email PDF)
+// PATCH /api/admin/orders/:id
 app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -531,7 +536,6 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     const order = await Order.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!order) return res.status(404).json({ ok: false, error: 'Order not found' });
 
-    // Notify customer by email (with updated receipt) if something changed
     const changed = [];
     if ('status' in update) changed.push('Status → ' + update.status);
     if ('paymentStatus' in update) changed.push('Payment → ' + update.paymentStatus);
@@ -572,7 +576,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
 });
 
 /* =========================
-   PROOF UPLOAD
+   Proof upload (Cloudinary)
    ========================= */
 async function uploadProofToCloudinary({ base64, mime, filename }) {
   if (!base64 || !mime) return null;
@@ -587,7 +591,7 @@ async function uploadProofToCloudinary({ base64, mime, filename }) {
 }
 
 /* =========================
-   CREATE ORDER
+   Create Order
    ========================= */
 async function handleCreateOrder(req, res) {
   try {
@@ -606,7 +610,6 @@ async function handleCreateOrder(req, res) {
       ? Number(get(incoming,'info.grandTotal', 0))
       : (subtotal + deliveryFee);
 
-    // Optional: upload proof
     let proofUrl = null;
     try {
       if (proof && proof.base64 && proof.mime) {
@@ -618,9 +621,8 @@ async function handleCreateOrder(req, res) {
       }
     } catch (e) { console.error('Cloud upload failed:', e?.message || e); }
 
-    // Persist
     let saved = null;
-    if (MONGO_URI) {
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
       saved = await Order.create({
         ref,
         info: { ...incoming.info, deliveryFee, subtotal, grandTotal },
@@ -631,7 +633,6 @@ async function handleCreateOrder(req, res) {
       });
     }
 
-    // Build email content
     const name = get(incoming, 'info.name', 'Customer');
     const phone = get(incoming, 'info.phone', '');
     const email = get(incoming, 'info.email', '');
@@ -652,7 +653,6 @@ async function handleCreateOrder(req, res) {
     const payHtml = payDetails ? `<p><b>Payment details:</b></p>${kvHTML(payDetails)}` : '';
     const payTxt  = payDetails ? `\nPayment details:\n${kvBlock(payDetails)}` : '';
 
-    // PDF receipt
     const orderForPdf = saved || {
       ref,
       createdAt: Date.now(),
@@ -662,7 +662,7 @@ async function handleCreateOrder(req, res) {
     let pdfBuf = null;
     try { pdfBuf = await buildInvoicePdf(orderForPdf); } catch {}
 
-    // EMAIL → Admin
+    // Email admin
     try {
       await mailer.sendMail({
         from: MAIL_FROM || SMTP_USER,
@@ -701,7 +701,7 @@ ${proofUrl ? `Payment proof: ${proofUrl}\n` : ''}`,
       });
     } catch (e) { console.error('Admin email failed:', e?.message || e); }
 
-    // EMAIL → Customer
+    // Email customer
     if (email) {
       try {
         await mailer.sendMail({
@@ -724,7 +724,7 @@ ${proofUrl ? `Payment proof: ${proofUrl}\n` : ''}`,
       } catch (e) { console.error('Customer email failed:', e?.message || e); }
     }
 
-    // WhatsApp (admin)
+    // WhatsApp admin
     try {
       let ok = false;
       if (WA_TEMPLATE_NEW_ORDER) {
@@ -756,7 +756,7 @@ ${proofUrl ? '📎 Proof attached (see admin email).' : ''}` });
       }
     } catch (e) { console.error('Admin WA failed:', e?.message || e); }
 
-    // WhatsApp (customer)
+    // WhatsApp customer
     if (phone && /^\+\d{8,15}$/.test(phone)) {
       try {
         let ok = false;
@@ -788,20 +788,19 @@ We will contact you soon.` });
     return res.status(400).json({ ok: false, error: e?.message || 'Invalid order' });
   }
 }
-
 app.post('/api/orders', handleCreateOrder);
 app.post('/api/notify-order', handleCreateOrder);
 
 /* =========================
-   CUSTOMER ENDPOINTS
+   Customer endpoints
    ========================= */
-
-// GET /api/orders/track?ref=...&phone=...&email=...
 app.get('/api/orders/track', noStore, async (req, res) => {
   try {
     const { ref, phone, email } = req.query;
-    if (!MONGO_URI) return res.status(503).json({ ok:false, error:'Orders database unavailable' });
     if (!ref || (!phone && !email)) return res.status(400).json({ ok:false, error:'Provide ref and phone or email' });
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ ok:false, error:'Orders database unavailable' });
+    }
     const filter = { ref };
     if (phone) filter['info.phone'] = phone;
     if (email) filter['info.email'] = email;
@@ -839,11 +838,12 @@ app.get('/api/orders/track', noStore, async (req, res) => {
   }
 });
 
-// GET /api/orders/by-contact?phone=...&email=...&page=1&pageSize=20
 app.get('/api/orders/by-contact', async (req, res) => {
   try {
     const { phone, email, page = 1, pageSize = 20 } = req.query;
-    if (!MONGO_URI) return res.status(503).json({ ok:false, error:'Orders database unavailable' });
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ ok:false, error:'Orders database unavailable' });
+    }
     if (!phone && !email) return res.status(400).json({ ok:false, error:'Provide phone or email' });
     const filter = {};
     if (phone) filter['info.phone'] = phone;
@@ -886,12 +886,14 @@ app.get('/api/orders/by-contact', async (req, res) => {
   }
 });
 
-// PUBLIC RECEIPT PDF (verify with phone/email)
-// GET /api/orders/receipt.pdf?ref=...&phone=...|&email=...
+// PUBLIC RECEIPT PDF
 app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
   try {
     const { ref, phone, email } = req.query;
     if (!ref || (!phone && !email)) return res.status(400).send('Missing ref/identity');
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.status(503).send('DB unavailable');
+    }
     const filter = { ref };
     if (phone) filter['info.phone'] = phone;
     if (email) filter['info.email'] = email;
@@ -909,7 +911,7 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
 });
 
 /* =========================
-   START (single listen)
+   Start
    ========================= */
 const port = process.env.PORT || PORT || 5001;
 app.listen(port, () => {

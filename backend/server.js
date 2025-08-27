@@ -62,6 +62,19 @@ const {
 
 const app = express();
 
+app.get('/api/db-ping', async (_req, res) => {
+  try {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ ok: false, error: 'DB not connected' });
+    }
+    await mongoose.connection.db.admin().command({ ping: 1 });
+    res.json({ ok: true, state: mongoose.connection.readyState });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+
 // Hardening + essentials
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());

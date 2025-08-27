@@ -1,4 +1,4 @@
-<!doctype html> 
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -14,7 +14,7 @@
       margin-top:10px; padding:12px; border-radius:12px;
       background:#0b1220; border:1px solid #1f2937; color:#e5e7eb;
     }
-    .pay-card .row{justify-content:space-between; gap:8px}
+    .pay-card .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
     .copy-btn{
       border:1px solid #334155; background:transparent; color:#e5e7eb;
       padding:6px 10px; border-radius:8px; cursor:pointer;
@@ -28,15 +28,15 @@
   <div class="container">
     <h1>Checkout</h1>
     <div class="row" style="align-items:flex-start;gap:28px;flex-wrap:wrap">
-      <form id="form" style="flex:1;min-width:280px">
+      <form id="form" style="flex:1;min-width:280px" novalidate>
         <label class="label">Full name</label>
-        <input class="input" name="name" required>
+        <input class="input" name="name" autocomplete="name" required>
 
         <label class="label">Phone / WhatsApp</label>
-        <input class="input" name="phone" placeholder="+2327xxxxxxx" required>
+        <input class="input" name="phone" placeholder="+2327xxxxxxx" autocomplete="tel" required>
 
         <label class="label">Email (optional)</label>
-        <input class="input" name="email" type="email" placeholder="you@example.com">
+        <input class="input" name="email" type="email" placeholder="you@example.com" autocomplete="email">
 
         <label class="label">Delivery Address</label>
         <textarea class="input" name="address" rows="3" required></textarea>
@@ -81,15 +81,16 @@
 
 <script>
 (function(){
-  // ==========================
-  // Config
-  // ==========================
-const API_BASE = 'https://lwg-api.onrender.com';   // your backend root
-const CREATE_ORDER_URL = API_BASE + '/api/orders'; // endpoint for creating orders
-const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
+  /* ==========================
+     API CONFIG  (keep consistent across pages)
+     ========================== */
+  const API_BASE = 'https://lwg-api.onrender.com';
+  const CREATE_ORDER_URL = API_BASE + '/api/orders';
+  const MAX_PROOF_MB = 5;
 
-
-  // Delivery fees (NLe)
+  /* ==========================
+     Delivery fees (NLe)
+     ========================== */
   const DELIVERY_ZONES = {
     'Pick-up (No delivery)': 0,
     'Freetown (Urban)': 25,
@@ -98,7 +99,9 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
     'Provinces (Remote)': 120
   };
 
-  // Payment methods
+  /* ==========================
+     Payment methods (shown to user)
+     ========================== */
   const METHODS = {
     'Cash on Delivery': {
       label: 'Cash on Delivery',
@@ -127,35 +130,38 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
       label: 'Bank Transfer (Rokel Commercial Bank)',
       bank: 'Rokel Commercial Bank',
       accountName: 'LWG Partners Network',
-      accountNumber: 'REPLACE_WITH_ACCOUNT_NUMBER',
+      accountNumber: 'REPLACE_WITH_ACCOUNT_NUMBER', /* put real number */
       branch: 'Freetown Branch'
     }
   };
 
-  // ==========================
-  // Local Store
-  // ==========================
+  /* ==========================
+     Local Store
+     ========================== */
   const LS_PRODUCTS = 'lwg_products';
   const LS_CART     = 'lwg_cart';
 
   const Store = {
     products(){ try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); } catch{ return []; } },
-    getProduct(id){
-      const ps = Store.products();
-      for (let i=0;i<ps.length;i++) if (ps[i].id === id) return ps[i];
-      return null;
-    },
+    getProduct(id){ return Store.products().find(p => p.id === id) || null; },
     cart(){ try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); } catch{ return []; } },
     clearCart(){ localStorage.setItem(LS_CART, '[]'); }
   };
 
-  // ==========================
-  // Helpers
-  // ==========================
-  const $ = (s)=> document.querySelector(s);
-  const money = (n)=> 'NLe ' + Number(n||0).toLocaleString();
-  const Toast = (icon, title)=>
-    Swal.fire({ toast:true, position:'top-end', icon, title, showConfirmButton:false, timer:2000, timerProgressBar:true });
+  /* ==========================
+     Helpers
+     ========================== */
+  const $ = s => document.querySelector(s);
+  const money = n => 'NLe ' + Number(n||0).toLocaleString();
+  const isEmail = v => /\S+@\S+\.\S+/.test(v);
+  const normalizePhone = v => {
+    const raw = String(v||'').trim();
+    if (!raw) return '';
+    const digits = raw.replace(/[^\d]/g,'');
+    return digits ? ('+' + digits) : '';
+  };
+  const Toast = (icon, title) =>
+    Swal.fire({ toast:true, position:'top-end', icon, title, showConfirmButton:false, timer:2200, timerProgressBar:true });
 
   function cartItems(){
     const c = Store.cart();
@@ -178,9 +184,9 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
     return Object.prototype.hasOwnProperty.call(DELIVERY_ZONES, zone) ? DELIVERY_ZONES[zone] : 0;
   }
 
-  // ==========================
-  // Render summary
-  // ==========================
+  /* ==========================
+     Render summary
+     ========================== */
   const gridSum = $('#sum');
   function renderSummary(){
     const items = cartItems();
@@ -208,9 +214,9 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
   renderSummary();
   $('#deliveryZone').addEventListener('change', renderSummary);
 
-  // ==========================
-  // Payment info card
-  // ==========================
+  /* ==========================
+     Payment info card
+     ========================== */
   const payInfo = $('#payInfo');
   $('#payment').addEventListener('change', function(){
     const key = $('#payment').value;
@@ -244,19 +250,15 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
     }
     payInfo.style.display = 'block';
 
-    // Copy
+    // Copy buttons
     const cbs = payInfo.querySelectorAll('.copy-btn');
     for (let i=0;i<cbs.length;i++){
       cbs[i].addEventListener('click', function(e){
         const val = e.currentTarget.getAttribute('data-copy');
-        navigator.clipboard.writeText(val).then(function(){
-          Toast('success','Copied to clipboard');
-        }).catch(function(){
-          Toast('warning','Copy failed');
-        });
+        navigator.clipboard.writeText(val).then(()=>Toast('success','Copied')).catch(()=>Toast('warning','Copy failed'));
       });
     }
-    // Popup
+    // Detail popup
     const pop = $('#showPayPopup');
     if (pop){
       pop.onclick = function(){
@@ -271,14 +273,14 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
     }
   });
 
-  // ==========================
-  // Utilities
-  // ==========================
+  /* ==========================
+     Utilities
+     ========================== */
   function fileToBase64(file){
     return new Promise(function(resolve,reject){
       if (!file) return resolve(null);
       const r = new FileReader();
-      r.onload = function(){ 
+      r.onload = function(){
         const dataUrl = String(r.result || '');
         const comma = dataUrl.indexOf(',');
         const meta = dataUrl.slice(0, comma);
@@ -291,149 +293,165 @@ const MAX_PROOF_MB = 5;                            // proof upload limit (5 MB)
     });
   }
 
-  // ==========================
-  // Submit
-  // ==========================
+  /* ==========================
+     Submit
+     ========================== */
+  let busy = false;
   $('#form').addEventListener('submit', async function(e){
     e.preventDefault();
+    if (busy) return; // prevent double submit
+    busy = true;
 
-    const items = cartItems();
-    if (!items.length){
-      await Swal.fire({icon:'info', title:'Your cart is empty', text:'Add some products before checking out.'});
-      return;
-    }
+    try{
+      const items = cartItems();
+      if (!items.length){
+        await Swal.fire({icon:'info', title:'Your cart is empty', text:'Add some products before checking out.'});
+        return;
+      }
 
-    const fd = new FormData(e.target);
-    const data = {};
-    fd.forEach((v,k)=> data[k]=v);
+      const fd = new FormData(e.target);
+      const data = {}; fd.forEach((v,k)=> data[k]=v);
 
-    // basic validation
-    if (!String(data.name||'').trim()){
-      await Swal.fire({icon:'warning', title:'Name required', text:'Please enter your full name.'}); return;
-    }
-    if (!/^\+?\d{7,15}$/.test(String(data.phone||'').trim())){
-      await Swal.fire({icon:'warning', title:'Invalid phone', text:'Enter a valid phone/WhatsApp number in international format.'}); return;
-    }
-    if (!data.deliveryZone){
-      await Swal.fire({icon:'warning', title:'Select delivery area', text:'Please select your delivery location.'}); return;
-    }
-    if (!data.payment){
-      await Swal.fire({icon:'warning', title:'Select payment', text:'Choose a payment method to continue.'}); return;
-    }
+      // normalize + validate contact
+      data.phone = normalizePhone(data.phone);
 
-    const subtotal = itemsTotal(items);
-    const deliveryFee = currentDeliveryFee();
-    const grandTotal  = subtotal + deliveryFee;
+      if (!String(data.name||'').trim()){
+        await Swal.fire({icon:'warning', title:'Name required', text:'Please enter your full name.'}); return;
+      }
+      if (!/^\+\d{7,15}$/.test(String(data.phone||''))){
+        await Swal.fire({icon:'warning', title:'Invalid phone', text:'Enter a valid phone/WhatsApp number in international format (e.g. +2327xxxxxxx).'}); return;
+      }
+      if (String(data.email||'').trim() && !isEmail(String(data.email))){
+        await Swal.fire({icon:'warning', title:'Invalid email', text:'Please enter a valid email or leave it empty.'}); return;
+      }
+      if (!data.deliveryZone){
+        await Swal.fire({icon:'warning', title:'Select delivery area', text:'Please select your delivery location.'}); return;
+      }
+      if (!data.payment){
+        await Swal.fire({icon:'warning', title:'Select payment', text:'Choose a payment method to continue.'}); return;
+      }
 
-    // Payment snapshot (strings only)
-    const m = METHODS[data.payment];
-    let snap = null;
-    if (m){
-      snap = {};
-      for (const k in m){ if (Object.prototype.hasOwnProperty.call(m,k) && typeof m[k] === 'string') snap[k] = m[k]; }
-    }
+      const subtotal = itemsTotal(items);
+      const deliveryFee = currentDeliveryFee();
+      const grandTotal  = subtotal + deliveryFee;
 
-    // Prepare order payload matching backend schema
-    const orderPayload = {
-      items: items.map((i)=>({
-        id: i.id,
-        qty: i.qty,
-        product: {
-          title: i.product.title || 'Item',
-          price: Number(i.product.price || 0),
-          image: i.product.image || ''
+      // Payment snapshot (strings only)
+      const m = METHODS[data.payment];
+      let snap = null;
+      if (m){ snap = {}; for (const k in m){ if (Object.prototype.hasOwnProperty.call(m,k) && typeof m[k] === 'string') snap[k] = m[k]; } }
+
+      // Prepare order payload matching backend schema
+      const orderPayload = {
+        items: items.map((i)=>({
+          id: i.id,
+          qty: i.qty,
+          product: {
+            title: i.product.title || 'Item',
+            price: Number(i.product.price || 0),
+            image: i.product.image || ''
+          }
+        })),
+        total: subtotal,
+        info: {
+          name: String(data.name||'').trim(),
+          phone: data.phone,
+          email: String(data.email||'').trim(),
+          payment: String(data.payment||'').trim(),
+          address: String(data.address||'').trim(),
+          deliveryZone: data.deliveryZone,
+          deliveryFee,
+          subtotal,
+          grandTotal,
+          payment_details: snap || undefined
         }
-      })),
-      total: subtotal,
-      info: {
-        name: String(data.name||'').trim(),
-        phone: String(data.phone||'').trim(),
-        email: String(data.email||'').trim(),
-        payment: String(data.payment||'').trim(),
-        address: String(data.address||'').trim(),
-        deliveryZone: data.deliveryZone,
-        deliveryFee,
-        subtotal,
-        grandTotal,
-        payment_details: snap || undefined
+      };
+
+      // Confirm modal
+      let lines = '';
+      for (let i=0;i<items.length;i++){
+        lines += (items[i].product.title||'Item') + ' × ' + items[i].qty + ' — ' + money(Number(items[i].product.price||0)*Number(items[i].qty||0)) + '<br>';
       }
-    };
+      const ok = await Swal.fire({
+        icon: 'question',
+        title: 'Confirm your order?',
+        html:
+          '<div style="text-align:left">' +
+            '<div style="margin-bottom:8px"><b>Name:</b> '+ orderPayload.info.name +'</div>' +
+            '<div style="margin-bottom:8px"><b>Phone:</b> '+ orderPayload.info.phone +'</div>' +
+            '<div style="margin-bottom:8px"><b>Delivery area:</b> '+ orderPayload.info.deliveryZone +'</div>' +
+            '<div style="margin-bottom:8px"><b>Payment:</b> '+ orderPayload.info.payment +'</div>' +
+            '<div style="margin-bottom:8px"><b>Items:</b><br>'+ lines +'</div>' +
+            '<div class="hr" style="height:1px;background:#1f2937;margin:10px 0"></div>' +
+            '<div class="row" style="justify-content:space-between"><div>Subtotal</div><div>'+ money(subtotal) +'</div></div>' +
+            '<div class="row" style="justify-content:space-between"><div>Delivery</div><div>'+ money(deliveryFee) +'</div></div>' +
+            '<div class="row" style="justify-content:space-between;font-weight:700"><div>Total</div><div>'+ money(grandTotal) +'</div></div>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'Place Order',
+        cancelButtonText: 'Review',
+        reverseButtons: true
+      });
+      if (!ok.isConfirmed) return;
 
-    // Confirm modal
-    let lines = '';
-    for (let i=0;i<items.length;i++){
-      lines += (items[i].product.title||'Item') + ' × ' + items[i].qty + ' — ' + money(Number(items[i].product.price||0)*Number(items[i].qty||0)) + '<br>';
-    }
-    const ok = await Swal.fire({
-      icon: 'question',
-      title: 'Confirm your order?',
-      html:
-        '<div style="text-align:left">' +
-          '<div style="margin-bottom:8px"><b>Name:</b> '+ orderPayload.info.name +'</div>' +
-          '<div style="margin-bottom:8px"><b>Phone:</b> '+ orderPayload.info.phone +'</div>' +
-          '<div style="margin-bottom:8px"><b>Delivery area:</b> '+ orderPayload.info.deliveryZone +'</div>' +
-          '<div style="margin-bottom:8px"><b>Payment:</b> '+ orderPayload.info.payment +'</div>' +
-          '<div style="margin-bottom:8px"><b>Items:</b><br>'+ lines +'</div>' +
-          '<div class="hr" style="height:1px;background:#1f2937;margin:10px 0"></div>' +
-          '<div class="row" style="justify-content:space-between"><div>Subtotal</div><div>'+ money(subtotal) +'</div></div>' +
-          '<div class="row" style="justify-content:space-between"><div>Delivery</div><div>'+ money(deliveryFee) +'</div></div>' +
-          '<div class="row" style="justify-content:space-between;font-weight:700"><div>Total</div><div>'+ money(grandTotal) +'</div></div>' +
-        '</div>',
-      showCancelButton: true,
-      confirmButtonText: 'Place Order',
-      cancelButtonText: 'Review',
-      reverseButtons: true
-    });
-    if (!ok.isConfirmed) return;
+      const btn = $('#submitBtn');
+      btn.disabled = true; btn.textContent = 'Placing...';
+      Swal.fire({ title:'Placing your order', html:'Please wait…', allowOutsideClick:false, allowEscapeKey:false, didOpen: ()=> Swal.showLoading() });
 
-    const btn = $('#submitBtn');
-    btn.disabled = true; btn.textContent = 'Placing...';
-    Swal.fire({ title:'Placing your order', html:'Please wait…', allowOutsideClick:false, allowEscapeKey:false, didOpen: ()=> Swal.showLoading() });
-
-    try {
-      // Optional proof
-      const proofFile = (new FormData(e.target)).get('proof');
-      let proofPayload = null;
-      if (proofFile && proofFile.size > 0){
-        if (proofFile.size > MAX_PROOF_MB*1024*1024){
-          await Swal.fire({icon:'error', title:'File too large', text:'Payment proof must be ≤ ' + MAX_PROOF_MB + ' MB.'});
-          btn.disabled=false; btn.textContent='Place Order'; return;
+      try {
+        // Optional proof
+        const proofFile = (new FormData(e.target)).get('proof');
+        let proofPayload = null;
+        if (proofFile && proofFile.size > 0){
+          if (proofFile.size > MAX_PROOF_MB*1024*1024){
+            await Swal.fire({icon:'error', title:'File too large', text:'Payment proof must be ≤ ' + MAX_PROOF_MB + ' MB.'});
+            return;
+          }
+          const enc = await fileToBase64(proofFile);
+          proofPayload = { filename: proofFile.name, mime: enc.mime, base64: enc.base64 };
         }
-        const enc = await fileToBase64(proofFile);
-        proofPayload = { filename: proofFile.name, mime: enc.mime, base64: enc.base64 };
+
+        // Send to backend (schema: { order, proof? })
+        const resp = await fetch(CREATE_ORDER_URL, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ order: orderPayload, proof: proofPayload })
+        });
+
+        let json = null;
+        try { json = await resp.json(); } catch { /* ignore */ }
+
+        if (!resp.ok || !json || json.ok !== true){
+          // friendlier messages
+          if (resp.status === 503) throw new Error('Service temporarily unavailable. Please try again later.');
+          if (resp.status === 429) throw new Error('Too many orders submitted. Please wait a minute and try again.');
+          const msg = (json && json.error) ? json.error : ('HTTP ' + resp.status);
+          throw new Error(msg);
+        }
+
+        // Success -> clear cart and go to Receipt page
+        Store.clearCart();
+        await Swal.fire({
+          icon:'success',
+          title:'Order placed!',
+          html:'Thank you, <b>'+ orderPayload.info.name +'</b>.<br>Your reference is <b>'+ (json.ref || 'N/A') +'</b>.<br>You can download your receipt next.',
+          confirmButtonText:'Get Receipt'
+        });
+
+        const who = (orderPayload.info.email && orderPayload.info.email.indexOf('@')>-1)
+                    ? orderPayload.info.email
+                    : orderPayload.info.phone;
+        // The receipt page expects hash: #<ref>|<phoneOrEmail>
+        location.href = 'receipt.html#' + encodeURIComponent(json.ref) + '|' + encodeURIComponent(who);
+
+      } finally {
+        btn.disabled = false; btn.textContent = 'Place Order';
       }
-
-      // Send to backend (schema: { order, proof? })
-      const resp = await fetch(CREATE_ORDER_URL, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ order: orderPayload, proof: proofPayload })
-      });
-      const json = await resp.json().catch(()=>({ ok:false, error:'Invalid JSON' }));
-      if (!resp.ok || !json || json.ok !== true){
-        throw new Error((json && json.error) ? json.error : ('HTTP '+resp.status));
-      }
-
-      // Success -> clear cart and go to Receipt page
-      Store.clearCart();
-      await Swal.fire({
-        icon:'success',
-        title:'Order placed!',
-        html:'Thank you, <b>'+ orderPayload.info.name +'</b>.<br>Your reference is <b>'+ (json.ref || 'N/A') +'</b>.<br>You can download your receipt next.',
-        confirmButtonText:'Get Receipt'
-      });
-
-      const who = (orderPayload.info.email && orderPayload.info.email.indexOf('@')>-1)
-                  ? orderPayload.info.email
-                  : orderPayload.info.phone;
-      // The receipt page expects hash: #<ref>|<phoneOrEmail>
-      location.href = 'receipt.html#' + encodeURIComponent(json.ref) + '|' + encodeURIComponent(who);
 
     } catch (err){
       console.error('Checkout error:', err);
       await Swal.fire({icon:'error', title:'Something went wrong', text:String((err && err.message) || err || 'Please try again.')});
     } finally {
-      btn.disabled = false; btn.textContent = 'Place Order';
+      busy = false;
     }
   });
 })();

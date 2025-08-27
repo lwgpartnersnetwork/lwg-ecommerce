@@ -3,337 +3,227 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LWG • Admin Orders</title>
+  <title>Receipt • LWG</title>
+
+  <!-- prevent caching -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <link rel="stylesheet" href="css/styles.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    body{color:#e5e7eb;background:#0b1220}
-    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
-    .input,.sel,.btn{border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
-    .input{padding:8px;width:100%}
-    .sel{padding:8px}
-    .btn{padding:8px 12px;cursor:pointer}
-    .btn.primary{background:#1d4ed8;border-color:#1e40af}
-    .btn.good{background:#16a34a;border-color:#15803d}
-    .btn.ghost{background:transparent}
-    .hdr{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .row{display:flex;gap:8px;align-items:center}
-    .muted{color:#94a3b8}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:top}
-    th{color:#93c5fd}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace}
-    .tiny{font-size:12px}
-    details{background:#0b1220;border:1px solid #1f2937;border-radius:10px;padding:8px}
-    summary{cursor:pointer;color:#e5e7eb}
-    .pill{padding:2px 8px;border-radius:999px;border:1px solid #374151}
-    .pill.paid{background:#052e1f;border-color:#0b4a34;color:#a7f3d0}
-    .pill.pending{background:#2a2010;border-color:#4b3b1a;color:#fde68a}
-    .pill.failed{background:#2f1010;border-color:#4c1d1d;color:#fecaca}
-    .topbar{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #1f2937;background:#0b1220;margin-bottom:12px}
-    .pagination{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px}
+    :root{
+      --bg:#0b1220; --panel:#0b1220; --muted:#94a3b8; --line:#1f2937;
+      --btn:#111827; --btn-line:#1f2937; --btn-ok:#16a34a; --btn-ok-line:#15803d;
+      --input-bg:#0f172a; --input-line:#374151; --text:#e5e7eb;
+    }
+    body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
+    .card{max-width:860px;margin:24px auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px}
+    .row{display:flex;gap:12px;margin:6px 0;flex-wrap:wrap;align-items:center}
+    .items li{margin:4px 0}
+    .muted{color:var(--muted)}
+    .input{padding:10px;border-radius:10px;border:1px solid var(--input-line);background:var(--input-bg);color:var(--text);width:100%}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--btn-line);background:var(--btn);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+    .btn.good{background:var(--btn-ok);border-color:var(--btn-ok-line)}
+    .btn.ghost{background:var(--input-bg);border:1px solid var(--input-line)}
+    .timer{font-size:12px}
+    .grow{flex:1;min-width:220px}
+    .spin{width:16px;height:16px;border:2px solid #ffffff40;border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .err{color:#fca5a5}
+    .ok{color:#86efac}
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <h2 style="margin:0">LWG • Admin Orders</h2>
-    <div class="row" style="flex-wrap:wrap;gap:8px">
-      <input id="user" class="input" placeholder="user" style="max-width:140px"/>
-      <input id="pass" class="input" placeholder="pass" type="password" style="max-width:140px"/>
-      <button id="login" class="btn primary">Login</button>
-      <button id="demo" class="btn ghost" title="Quick demo login (client only)">Demo login</button>
-      <button id="logout" class="btn ghost" title="Clear token">Logout</button>
-      <a id="csv" class="btn ghost" href="#" download>Export CSV</a>
-    </div>
+  <div class="card">
+    <h2>Order Receipt</h2>
+    <p class="muted">Enter your <b>reference</b> and either your <b>phone</b> or <b>email</b> to view & download your receipt.</p>
+
+    <form id="rcpt-form" class="row" novalidate>
+      <label class="grow" for="ref" style="display:block">
+        <span class="muted" style="display:block;margin-bottom:6px">Reference</span>
+        <input id="ref" name="ref" class="input" placeholder="LWG-ABC123" autocomplete="off" required>
+      </label>
+      <label class="grow" for="who" style="display:block">
+        <span class="muted" style="display:block;margin-bottom:6px">Phone or Email</span>
+        <input id="who" name="who" class="input" placeholder="+232… or name@example.com" autocomplete="off" required>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="findBtn" type="submit" class="btn" aria-live="polite">
+          <span id="findTxt">Find</span>
+          <span id="findSpin" class="spin" style="display:none"></span>
+        </button>
+        <a id="dl" class="btn good" href="#" download style="display:none">Download PDF</a>
+        <button id="close" type="button" class="btn ghost" style="display:none">Close now</button>
+      </div>
+    </form>
+
+    <div id="msg" class="muted" style="margin-top:6px"></div>
+    <div id="out" style="margin-top:12px"></div>
+    <div id="timer" class="muted timer" style="display:none;margin-top:6px"></div>
   </div>
 
-  <div class="wrap">
-    <!-- Filters -->
-    <div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
-      <input id="q" class="input" placeholder="Search ref/name/phone/email" style="max-width:260px"/>
-      <select id="status" class="sel">
-        <option value="">All statuses</option>
-        <option>New</option><option>Processing</option><option>Shipped</option><option>Completed</option><option>Cancelled</option>
-      </select>
-      <select id="pstatus" class="sel">
-        <option value="">All payments</option>
-        <option>Pending</option><option>Paid</option><option>Failed</option>
-      </select>
-      <input id="from" class="input" type="date" title="From"/>
-      <input id="to" class="input" type="date" title="To"/>
-      <button id="load" class="btn">Load</button>
-      <div class="muted tiny" id="totalInfo"></div>
-    </div>
+<script type="module">
+/* ===== CONFIG (LIVE API) ===== */
+const API = 'https://lwg-api.onrender.com';   // your Render backend
+const AUTO_HIDE_MS = 7000;                     // receipt stays visible for 7s
 
-    <div id="out"></div>
-    <div class="pagination" id="pager" style="display:none">
-      <button class="btn ghost" id="prev">Prev</button>
-      <div class="muted tiny" id="pageMeta"></div>
-      <button class="btn ghost" id="next">Next</button>
-    </div>
-  </div>
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const money = n => 'NLe ' + Number(n||0).toLocaleString();
+const isEmail = v => /\S+@\S+\.\S+/.test(v);
+const normalizePhone = v => {
+  const s = (v||'').trim();
+  if (!s) return '';
+  const digits = s.replace(/[^\d+]/g,'').replace(/^(\+)?/, '');
+  return '+' + digits;
+};
 
-<script>
-(function(){
-  const API = 'https://lwg-api.onrender.com';
+let hideTimer = null;
+let tickTimer = null;
 
-  // Demo creds (client-side only)
-  const DEMO_USER = 'admin';
-  const DEMO_PASS = 'admin123';
+function btnLoading(on){
+  const btn = $('#findBtn'), txt = $('#findTxt'), sp = $('#findSpin');
+  btn.disabled = !!on;
+  sp.style.display = on ? 'inline-block' : 'none';
+  txt.textContent = on ? 'Finding…' : 'Find';
+}
 
-  function $(s){ return document.querySelector(s); }
-  function iso(d){ try{ return new Date(d).toLocaleString(); }catch(e){ return d; } }
-  function money(n){ return 'NLe ' + Number(n||0).toLocaleString(); }
-  function token(){ return localStorage.getItem('ADMIN_TOKEN') || ''; }
-  function setToken(t){ if(t){ localStorage.setItem('ADMIN_TOKEN', t);} }
-  function clearToken(){ localStorage.removeItem('ADMIN_TOKEN'); }
-  function statusPill(s){
-    var map = {Pending:'pending', Paid:'paid', Failed:'failed'};
-    var cls = map[s] || 'pending';
-    return '<span class="pill '+cls+'">'+(s||'Pending')+'</span>';
+function say(text, cls='muted'){
+  const el = $('#msg');
+  el.className = cls;
+  el.textContent = text || '';
+}
+
+function resetTransient(){
+  if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  $('#out').innerHTML = '';
+  $('#timer').style.display = 'none';
+  $('#timer').textContent = '';
+  const dl = $('#dl'); dl.style.display = 'none'; dl.href = '#';
+  $('#close').style.display = 'none';
+  say('');
+}
+
+function clearAll(){
+  resetTransient();
+  $('#ref').value = '';
+  $('#who').value = '';
+  if (location.hash || location.search) history.replaceState(null, '', location.pathname);
+}
+
+function startAutoHide(){
+  const started = Date.now();
+  $('#timer').style.display = 'block';
+
+  tickTimer = setInterval(() => {
+    const left = Math.max(0, AUTO_HIDE_MS - (Date.now() - started));
+    $('#timer').textContent = 'This page will clear in ' + Math.ceil(left/1000) + 's.';
+    if (left <= 0) { clearInterval(tickTimer); tickTimer = null; }
+  }, 250);
+
+  hideTimer = setTimeout(() => {
+    clearAll();
+    $('#out').innerHTML = '<p class="muted">Receipt cleared.</p>';
+  }, AUTO_HIDE_MS);
+
+  $('#close').style.display = 'inline-flex';
+}
+
+function render(order){
+  const items = (order.items||[]).map(i =>
+    `<li>${escapeHtml(i.product.title)} × ${i.qty} — ${money(i.product.price)}</li>`).join('');
+  $('#out').innerHTML = `
+    <div class="row"><div><b>Reference</b></div><div>${escapeHtml(order.ref)}</div></div>
+    <div class="row"><div><b>Date</b></div><div>${new Date(order.createdAt).toLocaleString()}</div></div>
+    <div class="row"><div><b>Status</b></div><div>${escapeHtml(order.status)}</div></div>
+    <div class="row"><div><b>Payment</b></div><div>${escapeHtml(order.paymentStatus)}</div></div>
+    <div class="row"><div><b>Name</b></div><div>${escapeHtml(order.info?.name||'')}</div></div>
+    <div class="row"><div><b>Delivery</b></div><div>${escapeHtml(order.info?.deliveryZone||'')}</div></div>
+    <div class="row"><div><b>Total</b></div><div><b>${money(order.info?.grandTotal ?? order.info?.subtotal ?? 0)}</b></div></div>
+    <div style="margin-top:8px"><b>Items</b><ul class="items">${items}</ul></div>
+  `;
+}
+
+function escapeHtml(s=''){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function fetchOrder(ref, whoRaw){
+  const who = whoRaw.trim();
+  const qs = new URLSearchParams({ ref });
+
+  if (isEmail(who)) qs.set('email', who);
+  else qs.set('phone', normalizePhone(who));
+
+  const r = await fetch(`${API}/api/orders/track?${qs}`, { cache:'no-store' });
+
+  // Friendly error mapping
+  if (!r.ok){
+    let reason = r.statusText || 'Request failed';
+    try {
+      const j = await r.json();
+      if (j && j.error) reason = j.error;
+    } catch {}
+    if (r.status === 404) throw new Error('Order not found. Check your reference and contact.');
+    if (r.status === 429) throw new Error('Too many tries. Please wait a minute and try again.');
+    if (r.status === 503) throw new Error('Service temporarily unavailable. Please try again later.');
+    throw new Error(reason);
   }
 
-  // robust fetch (JSON or text)
-  async function jsonFetch(url, options){
-    const r = await fetch(url, options);
-    const ct = (r.headers.get('content-type') || '').toLowerCase();
+  const j = await r.json().catch(()=>({ok:false,error:'Invalid JSON'}));
+  if (!j.ok) throw new Error(j.error || 'Unknown error');
+  return { order: j.order, qs };
+}
 
-    if (ct.includes('application/json')){
-      const j = await r.json().catch(()=>null);
-      return { ok: r.ok && !!j && (j.ok !== false), status: r.status, data: j, raw: null };
-    }
-    const txt = await r.text().catch(()=> '');
-    return { ok: r.ok, status: r.status, data: null, raw: txt };
+/* ===== Submit handler ===== */
+$('#rcpt-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ref = $('#ref').value.trim();
+  const who = $('#who').value.trim();
+
+  try {
+    if (!ref || !who) throw new Error('Enter both fields');
+    btnLoading(true);
+    resetTransient();
+    say('Looking up your order…');
+
+    const { order, qs } = await fetchOrder(ref, who);
+    render(order);
+    say('Found your order ✔', 'ok');
+
+    const dl = $('#dl');
+    dl.href = `${API}/api/orders/receipt.pdf?${qs}`;
+    dl.style.display = 'inline-flex';
+
+    history.replaceState(null, '', location.pathname);
+    startAutoHide();
+  } catch (err) {
+    say(String(err.message || err), 'err');
+  } finally {
+    btnLoading(false);
   }
+});
 
-  // Auth: server login
-  $('#login').onclick = async function(){
-    try{
-      const res = await jsonFetch(API + '/api/admin/login', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ user: $('#user').value.trim(), pass: $('#pass').value.trim() })
-      });
-      if(!res.ok || !res.data || !res.data.ok){
-        const msg = (res.data && res.data.error) ? res.data.error : ('HTTP '+res.status+' — '+(res.raw||''));
-        throw new Error(msg);
-      }
-      setToken(res.data.token);
-      Swal.fire({icon:'success', title:'Logged in', timer:1200, showConfirmButton:false});
-      load(1);
-    }catch(e){
-      Swal.fire({icon:'error', title:'Login failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+String(e.message||e)+'</pre>'});
-    }
-  };
+/* manual close */
+$('#close').addEventListener('click', clearAll);
 
-  // Auth: demo login (client-only token)
-  $('#demo').onclick = function(){
-    const u = $('#user').value.trim() || DEMO_USER;
-    const p = $('#pass').value.trim() || DEMO_PASS;
-    if (u === DEMO_USER && p === DEMO_PASS){
-      setToken('DEMO_TOKEN'); // server will reject protected actions with this
-      Swal.fire({icon:'success', title:'Demo unlocked', text:'View the UI; updating will still require real login.', timer:1800, showConfirmButton:false});
-      load(1);
-    } else {
-      Swal.fire({icon:'info', title:'Use admin / admin123 for demo'});
-    }
-  };
+/* clear if restored from bfcache */
+window.addEventListener('pageshow', (e) => { if (e.persisted) clearAll(); });
 
-  $('#logout').onclick = function(){ clearToken(); Swal.fire({icon:'info', title:'Logged out', timer:1200, showConfirmButton:false}); };
+/* clear on history nav */
+window.addEventListener('popstate', clearAll);
 
-  // Pagination state
-  var state = { page: 1, pageSize: 20, total: 0, lastQuery:'' };
-
-  // Build current query string from filters
-  function buildQS(page){
-    var qs = new URLSearchParams();
-    var q = $('#q').value.trim();
-    var st = $('#status').value;
-    var pst= $('#pstatus').value;
-    var from = $('#from').value;
-    var to   = $('#to').value;
-
-    if (q) qs.set('q', q);
-    if (st) qs.set('status', st);
-    if (pst) qs.set('pstatus', pst);
-    if (from) qs.set('from', from);
-    if (to) qs.set('to', to);
-    qs.set('page', page || state.page);
-    qs.set('pageSize', state.pageSize);
-    return qs.toString();
+/* deep link: receipt.html#LWG-XXX|+2327..orEmail */
+(function bootFromHash(){
+  if (location.hash.includes('|')) {
+    const [ref, who] = decodeURIComponent(location.hash.slice(1)).split('|');
+    $('#ref').value = (ref||'').trim();
+    $('#who').value = (who||'').trim();
+    history.replaceState(null, '', location.pathname);
+    $('#rcpt-form').dispatchEvent(new Event('submit', {cancelable:true}));
   }
-
-  // Load orders
-  async function load(page){
-    if (page) state.page = page;
-
-    state.lastQuery = buildQS(state.page);
-
-    try{
-      const res = await jsonFetch(API + '/api/admin/orders?' + state.lastQuery, {
-        headers:{ Authorization:'Bearer ' + token() }
-      });
-      if(!res.ok || !res.data || !res.data.ok){
-        if(res.status === 401){
-          clearToken();
-          throw new Error('Unauthorized (401). Please log in again.');
-        }
-        const msg = (res.data && res.data.error) ? res.data.error : ('HTTP '+res.status+' — '+(res.raw||''));
-        throw new Error(msg);
-      }
-      state.total = Number(res.data.total || 0);
-      render(res.data.orders || []);
-      renderPager();
-      $('#totalInfo').textContent = state.total + ' total';
-
-      // CSV link
-      $('#csv').href = API + '/api/admin/orders/export.csv?' + buildQS(1);
-      $('#csv').download = 'orders.csv';
-
-    }catch(e){
-      $('#out').innerHTML = '<p class="muted">Error: '+ String(e.message||e) +'</p>';
-      $('#pager').style.display = 'none';
-    }
-  }
-  $('#load').onclick = function(){ load(1); };
-
-  function renderPager(){
-    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if (pages <= 1){ $('#pager').style.display='none'; return; }
-    $('#pager').style.display='flex';
-    $('#pageMeta').textContent = 'Page ' + state.page + ' of ' + pages;
-    $('#prev').disabled = state.page <= 1;
-    $('#next').disabled = state.page >= pages;
-  }
-  $('#prev').onclick = function(){ if(state.page>1) load(state.page-1); };
-  $('#next').onclick = function(){
-    var pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if(state.page < pages) load(state.page+1);
-  };
-
-  function itemsList(items){
-    if(!items || !items.length) return '<em class="muted tiny">No items</em>';
-    return '<ul style="margin:6px 0 0 16px">' +
-      items.map(function(i){
-        var t = (i.product && i.product.title) || 'Item';
-        var p = (i.product && i.product.price) || 0;
-        return '<li>'+ t +' × '+ (i.qty||0) +' — '+ money(p) +'</li>';
-      }).join('') +
-    '</ul>';
-  }
-
-  function opt(cur, val){ return '<option '+ (cur===val?'selected':'') +'>'+val+'</option>'; }
-
-  function render(orders){
-    if (!token()){
-      $('#out').innerHTML = '<p class="muted">Login first to view orders.</p>';
-      return;
-    }
-    if (!orders.length){
-      $('#out').innerHTML = '<p class="muted">No orders found for your filters.</p>';
-      return;
-    }
-
-    var rows = orders.map(function(o){
-      var total = o.info ? (o.info.grandTotal || o.info.subtotal || 0) : 0;
-      var contact = o.info ? ((o.info.phone || '') + (o.info.email ? ('<br>'+o.info.email) : '')) : '';
-      var delivery = o.info ? (o.info.deliveryZone || '') : '';
-      var address = o.info ? (o.info.address || '') : '';
-      var payMethod = o.info ? (o.info.payment || '') : '';
-      var proof = o.proofUrl ? ('<a class="btn ghost tiny" href="'+o.proofUrl+'" target="_blank">View Proof</a>') : '<span class="muted tiny">—</span>';
-
-      return (
-        '<tr>' +
-          '<td class="mono" style="min-width:120px">'+ (o.ref||'') +'</td>' +
-          '<td style="min-width:160px">'+ iso(o.createdAt) +'</td>' +
-          '<td style="min-width:180px"><div><b>'+ (o.info && o.info.name ? o.info.name : '') +'</b></div><div class="muted tiny">'+ contact +'</div></td>' +
-          '<td>'+ money(total) +'</td>' +
-          '<td>'+ (o.status || 'New') +'</td>' +
-          '<td>'+ statusPill(o.paymentStatus || 'Pending') +'</td>' +
-          '<td style="min-width:120px">'+ proof +'</td>' +
-          '<td style="min-width:220px">' +
-            '<select class="sel st" data-id="'+o._id+'">' +
-              opt(o.status,'New') + opt(o.status,'Processing') + opt(o.status,'Shipped') + opt(o.status,'Completed') + opt(o.status,'Cancelled') +
-            '</select>' +
-            '<select class="sel pay" data-id="'+o._id+'" style="margin-top:6px">' +
-              opt(o.paymentStatus,'Pending') + opt(o.paymentStatus,'Paid') + opt(o.paymentStatus,'Failed') +
-            '</select>' +
-            '<input class="input note" data-id="'+o._id+'" placeholder="Optional note to customer" style="margin-top:6px"/>' +
-            '<button class="btn good upd" data-id="'+o._id+'" style="margin-top:6px;width:100%">Update</button>' +
-          '</td>' +
-        '</tr>' +
-        '<tr><td colspan="8">' +
-          '<details>' +
-            '<summary>Details</summary>' +
-            '<div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-top:8px">' +
-              '<div style="min-width:260px">' +
-                '<div><b>Payment method:</b> '+ payMethod +'</div>' +
-                '<div><b>Delivery area:</b> '+ delivery + (o.info && (o.info.deliveryFee!=null) ? (' (NLe '+Number(o.info.deliveryFee)+')') : '') +'</div>' +
-                '<div><b>Subtotal:</b> '+ (o.info ? money(o.info.subtotal||0) : 'N/A') +'</div>' +
-                '<div><b>Total:</b> <b>'+ money(total) +'</b></div>' +
-              '</div>' +
-              '<div style="min-width:260px"><div><b>Address:</b></div><div class="muted tiny" style="white-space:pre-wrap">'+ address +'</div></div>' +
-            '</div>' +
-            '<div style="margin-top:8px"><b>Items</b>'+ itemsList(o.items) +'</div>' +
-          '</details>' +
-        '</td></tr>'
-      );
-    }).join('');
-
-    $('#out').innerHTML =
-      '<table>' +
-        '<thead><tr>' +
-          '<th>Ref</th><th>Date</th><th>Customer</th><th>Total</th><th>Status</th><th>Payment</th><th>Proof</th><th>Actions</th>' +
-        '</tr></thead>' +
-        '<tbody>'+ rows +'</tbody>' +
-      '</table>';
-
-    // Wire update buttons
-    var buttons = document.querySelectorAll('.upd');
-    for (var i=0;i<buttons.length;i++){
-      buttons[i].addEventListener('click', updateOrder);
-    }
-  }
-
-  async function updateOrder(e){
-    var id  = e.currentTarget.getAttribute('data-id');
-    var st  = document.querySelector('.sel.st[data-id="'+id+'"]').value;
-    var pay = document.querySelector('.sel.pay[data-id="'+id+'"]').value;
-    var note= document.querySelector('.input.note[data-id="'+id+'"]').value;
-
-    var t = token();
-    if (!t){
-      await Swal.fire({icon:'info', title:'Please log in', text:'Admin token missing.'});
-      return;
-    }
-
-    const res = await jsonFetch(API + '/api/admin/orders/' + encodeURIComponent(id), {
-      method:'PATCH',
-      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + t },
-      body: JSON.stringify({ status: st, paymentStatus: pay, note: note })
-    });
-
-    if (res.ok && res.data && res.data.ok){
-      await Swal.fire({icon:'success', title:'Order updated', timer:1200, showConfirmButton:false});
-      load(state.page);
-      return;
-    }
-
-    if (res.status === 401){
-      clearToken();
-      await Swal.fire({icon:'error', title:'Unauthorized (401)', text:'Please log in again.'});
-      return;
-    }
-
-    const msg = res.data && res.data.error
-      ? res.data.error
-      : (res.raw ? ('HTTP ' + res.status + ' — ' + res.raw.slice(0,300)) : ('HTTP ' + res.status));
-
-    await Swal.fire({icon:'error', title:'Update failed', html:'<pre style="white-space:pre-wrap;text-align:left">'+msg+'</pre>'});
-  }
-
-  // Auto-load if already logged in
-  if (token()) load(1);
 })();
 </script>
 </body>

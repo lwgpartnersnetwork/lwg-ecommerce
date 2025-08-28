@@ -83,6 +83,8 @@ const {
 } = process.env;
 
 const app = express();
+app.set('trust proxy', 1); // ✅ fixes Render proxy warning
+
 
 /* =========================
    Hardening + essentials
@@ -913,6 +915,8 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
     res.status(500).send('Failed to generate receipt');
   }
 });
+
+
 
 /* =========================
    Start

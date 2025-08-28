@@ -18,6 +18,7 @@
     .muted{color:var(--muted)}
     .container{max-width:1100px;margin:24px auto;padding:0 16px}
 
+    /* grid + card */
     .grid{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
     @media (min-width:720px){ .grid{grid-template-columns:repeat(3,1fr)} }
     @media (min-width:1100px){ .grid{grid-template-columns:repeat(4,1fr)} }
@@ -32,10 +33,21 @@
     .price{color:var(--price);font-weight:800;font-size:18px}
     .footer{border-top:1px solid var(--line);padding:16px;text-align:center;color:var(--muted)}
     .empty{color:var(--muted);margin-top:10px}
-    .loading{color:var(--muted);margin-top:10px}
+
+    /* lightweight skeletons */
+    .skeleton{
+      position:relative;overflow:hidden;background:#111827;border-radius:12px;border:1px solid #1f2937;height:260px
+    }
+    .skeleton::after{
+      content:'';position:absolute;inset:0;transform:translateX(-100%);
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+      animation:shimmer 1.2s infinite;
+    }
+    @keyframes shimmer{ 100%{ transform:translateX(100%); } }
   </style>
 </head>
 <body>
+  <!-- Top navigation -->
   <nav class="nav">
     <div class="brand">
       <a href="index.html" style="display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none">
@@ -50,12 +62,27 @@
     </div>
   </nav>
 
+  <!-- MAIN content -->
   <main class="container">
-    <h1 style="margin:8px 0 12px">Featured Products</h1>
-    <p id="loading" class="loading">Loading products…</p>
-    <div id="grid" class="grid" style="display:none"></div>
-    <p id="empty" class="empty" style="display:none">No products yet.</p>
-    <p id="error" class="empty" style="display:none">Couldn’t load products. Please try again.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h1 style="margin:8px 0 12px">Featured Products</h1>
+
+      <!-- simple search -->
+      <form id="searchForm" class="row" style="margin-left:auto;gap:8px;flex-wrap:nowrap">
+        <input id="q" class="input" placeholder="Search products…" style="min-width:220px">
+        <button class="btn ghost" type="submit" aria-label="Search">Search</button>
+      </form>
+    </div>
+
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty" style="display:none">No products yet. Add some in the Admin Dashboard, then refresh.</p>
+
+    <!-- pager -->
+    <div id="pager" class="row" style="justify-content:center;margin-top:16px;display:none">
+      <button id="prev" class="btn ghost" type="button">Prev</button>
+      <span id="pageNote" class="muted"></span>
+      <button id="next" class="btn ghost" type="button">Next</button>
+    </div>
   </main>
 
   <footer class="footer">
@@ -64,71 +91,168 @@
 
 <script>
 (function(){
-  const API_BASE = 'https://lwg-api.onrender.com';
-  const LS_CART  = 'lwg_cart';
+  /* =======================
+     API base
+     ======================= */
+  const API_BASE =
+    window.__LWG_API__ ||
+    (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      ? 'http://localhost:5001'
+      : 'https://lwg-api.onrender.com');
 
-  function $(s){ return document.querySelector(s); }
-  function money(n){ const num = Number(n||0); return 'NLe ' + (Number.isFinite(num)? num.toLocaleString(): n); }
-  function cart(){ try{ return JSON.parse(localStorage.getItem(LS_CART)||'[]'); }catch{ return []; } }
-  function updateCount(){
-    const c = cart().reduce((s,i)=> s + Number(i.qty||0), 0);
-    $('#cartCount').textContent = c;
+  /* =======================
+     Minimal helpers
+     ======================= */
+  const $ = (s) => document.querySelector(s);
+  const money = (n) => {
+    const num = Number(n||0);
+    try { return 'NLe ' + num.toLocaleString(); } catch { return 'NLe ' + num; }
+  };
+  const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+  // cart count from localStorage (existing front-end convention)
+  function cartCount(){
+    try {
+      const list = JSON.parse(localStorage.getItem('lwg_cart') || '[]');
+      return list.reduce((s,i)=> s + Number(i.qty||0), 0);
+    } catch { return 0; }
+  }
+  function updateCount(){ $('#cartCount').textContent = cartCount(); }
+
+  /* =======================
+     Fetch products
+     ======================= */
+  async function fetchProducts({ q='', page=1, pageSize=12 } = {}){
+    const qs = new URLSearchParams();
+    if (q) qs.set('q', q);
+    qs.set('page', String(page));
+    qs.set('pageSize', String(pageSize));
+
+    const url = `${API_BASE}/api/products?` + qs.toString();
+    const r = await fetch(url, { headers: { 'Accept':'application/json' }});
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    if (!data || data.ok !== true) throw new Error(data?.error || 'Invalid response');
+    return { products: data.products || [], total: Number(data.total||0) };
   }
 
-  async function fetchProducts(){
-    const resp = await fetch(`${API_BASE}/api/products`, { cache: 'no-store' });
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const data = await resp.json();
-    return data.products || [];
-  }
+  /* =======================
+     Rendering
+     ======================= */
+  const grid = $('#grid');
+  const empty = $('#empty');
 
-  function makeCard(p){
+  function productCard(p){
     const el = document.createElement('article');
     el.className = 'card';
-    const title = String(p.title || 'Product');
-    const img   = String(p.image || '');
+    const title = esc(p.title || 'Product');
+    const img = esc((p.image || (Array.isArray(p.images)&&p.images[0]) || ''));
+    const price = p.price || 0;
+
     el.innerHTML = `
-      <img class="thumb" src="${img}" alt="${title.replace(/"/g,'&quot;')}"
+      <img class="thumb" src="${img}" alt="${title}"
            onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
       <div class="body">
         <div class="title">${title}</div>
         <div class="pill">Sierra Leone delivery</div>
         <div class="row">
-          <div class="price">${money(p.price)}</div>
+          <div class="price">${money(price)}</div>
         </div>
       </div>
     `;
-    el.addEventListener('click', ()=> {
-      // prefer slug if present, else id
-      const key = p.slug ? p.slug : p._id || p.id;
-      location.href = 'product.html?id=' + encodeURIComponent(key);
+
+    el.addEventListener('click', () => {
+      const idOrSlug = p.slug || p._id || p.id;
+      if (!idOrSlug) return;
+      location.href = 'product.html?id=' + encodeURIComponent(idOrSlug);
     });
     return el;
   }
 
-  async function boot(){
-    $('#y').textContent = new Date().getFullYear();
-    updateCount();
+  function skeletonCard(){
+    const el = document.createElement('div');
+    el.className = 'skeleton';
+    return el;
+  }
 
-    const grid = $('#grid'), loading = $('#loading'), empty = $('#empty'), error = $('#error');
-    loading.style.display = 'block';
-    grid.style.display = 'none'; empty.style.display = 'none'; error.style.display = 'none';
+  async function render({ q='', page=1, pageSize=12 } = {}){
+    // skeletons
+    grid.innerHTML = '';
+    for (let i=0;i<pageSize;i++) grid.appendChild(skeletonCard());
+    empty.style.display = 'none';
 
     try{
-      const list = await fetchProducts();
-      loading.style.display = 'none';
-      if(!list.length){ empty.style.display = 'block'; return; }
+      const { products, total } = await fetchProducts({ q, page, pageSize });
+
       grid.innerHTML = '';
-      list.forEach(p => grid.appendChild(makeCard(p)));
-      grid.style.display = 'grid';
-    }catch(e){
-      console.error(e);
-      loading.style.display = 'none';
-      error.style.display = 'block';
+      if (!products.length){
+        empty.style.display = 'block';
+      } else {
+        products.forEach(p => grid.appendChild(productCard(p)));
+      }
+
+      // pagination UI
+      setupPager({ total, page, pageSize, q });
+    }catch(err){
+      grid.innerHTML = '';
+      empty.textContent = 'Failed to load products. Please retry.';
+      empty.style.display = 'block';
+      console.error('Products fetch error:', err);
     }
   }
 
-  boot();
+  /* =======================
+     Simple pagination
+     ======================= */
+  const pager = $('#pager');
+  const prevBtn = $('#prev');
+  const nextBtn = $('#next');
+  const pageNote = $('#pageNote');
+  let state = { q:'', page:1, pageSize:12, total:0 };
+
+  function setupPager({ total, page, pageSize, q }){
+    state = { total, page, pageSize, q };
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    if (pages <= 1){
+      pager.style.display = 'none';
+      return;
+    }
+    pageNote.textContent = `Page ${page} of ${pages}`;
+    prevBtn.disabled = (page <= 1);
+    nextBtn.disabled = (page >= pages);
+    pager.style.display = 'flex';
+  }
+
+  prevBtn.addEventListener('click', () => {
+    if (state.page > 1){
+      render({ q: state.q, page: state.page - 1, pageSize: state.pageSize });
+    }
+  });
+  nextBtn.addEventListener('click', () => {
+    const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    if (state.page < pages){
+      render({ q: state.q, page: state.page + 1, pageSize: state.pageSize });
+    }
+  });
+
+  /* =======================
+     Search
+     ======================= */
+  const searchForm = $('#searchForm');
+  const qInput = $('#q');
+  searchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = (qInput.value || '').trim();
+    render({ q, page:1, pageSize:12 });
+  });
+
+  /* =======================
+     Boot
+     ======================= */
+  $('#y').textContent = new Date().getFullYear();
+  updateCount();
+  render(); // initial
+
 })();
 </script>
 </body>

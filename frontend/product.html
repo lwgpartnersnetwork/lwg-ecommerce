@@ -5,363 +5,108 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Product • LWG</title>
   <link rel="stylesheet" href="css/styles.css"/>
-
   <style>
-    :root{
-      --bg:#0b1220; --panel:#0b1220; --line:#1f2937; --muted:#94a3b8;
-      --text:#e5e7eb; --btn:#111827; --btn-line:#1f2937;
-      --brand:#2563eb; --ok:#16a34a; --okline:#15803d; --warn:#f59e0b;
-    }
-    body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
-    a{color:inherit}
-    .wrap{max-width:1120px;margin:0 auto;padding:20px}
-    .crumbs{font-size:14px;color:var(--muted);margin-bottom:10px}
-    .crumbs a{text-decoration:none;color:var(--muted)}
-    .product{
-      display:grid;grid-template-columns: 1.1fr 0.9fr;gap:28px;align-items:start
-    }
-    @media (max-width: 900px){ .product{grid-template-columns:1fr} }
-
-    /* gallery */
-    .gallery{display:grid;grid-template-columns:96px 1fr;gap:12px}
-    @media (max-width: 720px){ .gallery{grid-template-columns:1fr} }
-    .thumbs{display:flex;flex-direction:column;gap:10px;max-height:540px;overflow:auto;padding-right:4px}
-    .thumb{border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:#0b1220}
-    .thumb img{display:block;width:100%;height:80px;object-fit:cover}
-    .thumb.active{outline:2px solid var(--brand)}
-    .stage{border:1px solid var(--line);border-radius:16px;background:#0b1220;display:flex;align-items:center;justify-content:center;min-height:360px;overflow:hidden}
-    .stage img{width:100%;max-height:640px;object-fit:contain;display:block;background:#0b1220}
-
-    /* top quick-actions (Chat / Inquiry) */
-    .quickbar{position:sticky;top:0;z-index:20;background:linear-gradient(#0b1220,#0b1220e0);
-      backdrop-filter:saturate(140%) blur(2px);border-bottom:1px solid #101826}
-    .quickbar-inner{max-width:1120px;margin:0 auto;padding:10px 20px;display:flex;gap:10px;align-items:center;justify-content:flex-end}
-    .btn{background:var(--brand);border:0;color:#fff;padding:12px 16px;border-radius:12px;cursor:pointer}
-    .btn.ghost{background:transparent;border:1px solid #334155;color:#e5e7eb}
-    .btn.ok{background:var(--ok)}
-    .btn.whatsapp{display:inline-flex;align-items:center;gap:8px}
-    .wa-dot{width:10px;height:10px;border-radius:999px;background:#25D366;display:inline-block}
-
-    /* right panel */
-    .title{margin:0 0 4px}
+    :root{ --bg:#0b1220;--line:#1f2937;--muted:#9ca3af;--text:#e5e7eb; --price:#ef4444; }
+    body{background:var(--bg);color:var(--text)}
+    .container{max-width:1000px;margin:24px auto;padding:0 16px}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1e40af;background:#1d4ed8;color:#fff;cursor:pointer}
+    .btn.ghost{background:#0f172a;border:1px solid #374151}
     .muted{color:var(--muted)}
-    .price{font-size:22px;font-weight:700;margin:6px 0}
-    .stock{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
-    .stock.ok{border-color:#14532d;background:#052e16}
-    .stock.low{border-color:#4d2a00;background:#1f1300}
-    .sku{font-size:12px;color:var(--muted)}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .qty{display:inline-flex;align-items:center;border:1px solid #334155;border-radius:10px;overflow:hidden}
-    .qty button{border:0;background:#0b1220;color:#e5e7eb;padding:10px 14px;cursor:pointer}
-    .qty input{width:78px;border:0;background:#0b1220;color:#e5e7eb;text-align:center;padding:10px}
-    .sp{height:10px}
-
-    /* lower action bar: Buy — PRICE — Add */
-    .action-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .action-bar .big-price{font-size:22px;font-weight:800;margin:0 6px}
-
-    /* accordion */
-    .acc{border:1px solid var(--line);border-radius:14px;overflow:hidden}
-    .acc .head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#0f172a;cursor:pointer}
-    .acc .body{padding:12px 14px;display:none;background:#0b1220}
-    .acc.open .body{display:block}
-
-    /* related rail */
-    .related{margin-top:26px}
-    .rail{display:flex;gap:14px;overflow:auto;padding-bottom:8px;scroll-snap-type:x proximity}
-    .card{min-width:220px;scroll-snap-align:start;background:#0b1220;border:1px solid #1f2937;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-    .card img{width:100%;height:160px;object-fit:cover;background:#111827}
-    .card .body{padding:12px;display:flex;flex-direction:column;gap:8px}
-    .badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--muted)}
-    .toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #1f2937;color:#e5e7eb;padding:12px 14px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.25s}
-    .toast.show{opacity:1;transform:translateY(0)}
-    /* simple icon bubble for cart in nav (existing style may override) */
+    .grid{display:grid;gap:16px}
+    @media (min-width:860px){ .grid{ grid-template-columns: 1fr 1.1fr; align-items:start } }
+    .thumb{width:100%;height:360px;object-fit:cover;background:#111827;border:1px solid var(--line);border-radius:14px}
+    .price{color:var(--price);font-weight:800;font-size:22px;margin:8px 0}
+    .qty{display:flex;gap:8px;align-items:center;margin:12px 0}
+    input[type=number]{width:90px;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
+    .loading,.empty,.error{color:var(--muted);margin-top:10px}
   </style>
 </head>
 <body>
-  <!-- Top nav -->
   <nav class="nav">
-    <div class="brand">
-      <a href="index.html" style="display:flex;align-items:center;gap:10px">
-        <span>LWG Store</span>
-        <span class="badge">Shop</span>
-      </a>
-    </div>
-    <div class="row">
-      <a href="index.html" class="muted">Home</a>
-      <a href="cart.html" class="btn ghost">Cart (<span id="cartCount">0</span>)</a>
-      <a href="my-orders.html" class="muted">my orders</a>
-      <a href="order-tracking.html" class="muted">tracking</a>
-    </div>
+    <a href="index.html" class="muted">← Back</a>
+    <a href="cart.html" class="btn ghost">Cart (<span id="cartCount">0</span>)</a>
   </nav>
 
-  <!-- Quick actions (UP TOP like screenshot) -->
-  <div class="quickbar">
-    <div class="quickbar-inner">
-      <a id="chatNowTop" class="btn ghost whatsapp" target="_blank" rel="noopener">
-        <span class="wa-dot"></span> Chat now
-      </a>
-      <a id="sendInquiryTop" class="btn" target="_blank" rel="noopener">Send inquiry</a>
-    </div>
-  </div>
+  <main class="container">
+    <div id="loading" class="loading">Loading…</div>
+    <div id="error" class="error" style="display:none">Couldn’t load product.</div>
 
-  <main class="wrap">
-    <div id="crumbs" class="crumbs"></div>
-    <section id="product" class="product"></section>
-
-    <section class="related">
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0">Related products</h3>
-        <span class="muted" style="font-size:13px">You might also like</span>
+    <section id="wrap" class="grid" style="display:none">
+      <div>
+        <img id="img" class="thumb" src="" alt=""/>
       </div>
-      <div id="rail" class="rail"></div>
+      <div>
+        <h1 id="title" style="margin:0 0 8px">Product</h1>
+        <div id="price" class="price">NLe 0</div>
+        <p id="desc" class="muted" style="white-space:pre-wrap"></p>
+
+        <div class="qty">
+          <label for="q" class="muted">Qty</label>
+          <input id="q" type="number" min="1" value="1"/>
+        </div>
+
+        <button id="add" class="btn">Add to cart</button>
+      </div>
     </section>
   </main>
 
-  <div class="toast" id="toast"></div>
-
 <script>
 (function(){
-  // ─────────────────────────────────────────────────────────────
-  // Storage keys (same as Admin dashboard)
-  // ─────────────────────────────────────────────────────────────
-  var LS_PRODUCTS = 'lwg_products';
-  var LS_CART     = 'lwg_cart';
+  const API_BASE = 'https://lwg-api.onrender.com';
+  const LS_CART  = 'lwg_cart';
 
-  // ─────────────────────────────────────────────────────────────
-  // Tiny helpers
-  // ─────────────────────────────────────────────────────────────
   function $(s){ return document.querySelector(s); }
-  function money(n){ return 'NLe ' + Number(n||0).toLocaleString(); }
-  function toast(msg){
-    var t = $('#toast'); if(!t) return alert(msg);
-    t.textContent = String(msg||''); t.classList.add('show');
-    setTimeout(()=> t.classList.remove('show'), 1400);
-  }
-  function getParam(name){
-    var u = new URL(location.href);
-    return u.searchParams.get(name);
-  }
-  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function money(n){ const num = Number(n||0); return 'NLe ' + (Number.isFinite(num)? num.toLocaleString(): n); }
+  function cart(){ try{ return JSON.parse(localStorage.getItem(LS_CART)||'[]'); }catch{ return []; } }
+  function saveCart(c){ localStorage.setItem(LS_CART, JSON.stringify(c)); }
+  function updateCount(){ const c=cart().reduce((s,i)=>s+Number(i.qty||0),0); $('#cartCount').textContent=c; }
+  function getParam(name){ return new URLSearchParams(location.search).get(name); }
 
-  // ─────────────────────────────────────────────────────────────
-  // Store-like utilities using the SAME keys as Admin
-  // ─────────────────────────────────────────────────────────────
-  var Store = {
-    products: function(){
-      try { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
-      catch(e){ return []; }
-    },
-    getProduct: function(id){
-      var ps = Store.products();
-      for (var i=0;i<ps.length;i++){ if (ps[i].id === id) return ps[i]; }
-      return null;
-    },
-    cart: function(){
-      try { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
-      catch(e){ return []; }
-    },
-    saveCart: function(items){
-      localStorage.setItem(LS_CART, JSON.stringify(items||[]));
-    },
-    addToCart: function(id, qty){
-      qty = Math.max(1, Math.floor(Number(qty||1)));
-      var c = Store.cart();
-      var found = false;
-      for (var i=0;i<c.length;i++){
-        if (c[i].id === id){ c[i].qty += qty; found = true; break; }
-      }
-      if (!found) c.push({ id:id, qty:qty });
-      Store.saveCart(c);
-    }
-  };
-
-  // cart count bubble
-  function updateCount(){
-    var c = Store.cart().reduce(function(s,i){ return s + Number(i.qty||0); }, 0);
-    var el = $('#cartCount'); if (el) el.textContent = c;
+  async function fetchProduct(idOrSlug){
+    const resp = await fetch(`${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`, { cache:'no-store' });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data = await resp.json();
+    return data.product;
   }
 
-  // breadcrumb
-  function renderCrumbs(p){
-    var cat = p && p.category ? esc(p.category) : 'Products';
-    $('#crumbs').innerHTML =
-      '<a href="index.html">Home</a> &nbsp;›&nbsp; ' +
-      '<a href="index.html#'+encodeURIComponent(cat)+'">'+cat+'</a> &nbsp;›&nbsp; ' +
-      '<span>'+esc(p && p.title || '')+'</span>';
-  }
+  async function boot(){
+    updateCount();
+    const id = getParam('id');
+    if(!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
 
-  // gallery
-  function buildGallery(images){
-    var gallery = document.createElement('div'); gallery.className='gallery';
-    var thumbs = document.createElement('div'); thumbs.className='thumbs'; thumbs.id='thumbs';
-    var stage = document.createElement('div'); stage.className='stage'; stage.id='stage';
-    stage.innerHTML = '<img id="mainImg" src="'+esc(images[0]||'')+'" alt="">';
+    try{
+      const p = await fetchProduct(id);
+      $('#title').textContent = p.title || 'Product';
+      $('#price').textContent = money(p.price);
+      $('#desc').textContent  = p.desc || '';
+      const img = p.image || '';
+      const el = $('#img');
+      el.src = img || 'https://via.placeholder.com/800x600?text=No+Image';
+      el.alt = (p.title||'').replace(/"/g,'&quot;');
 
-    images.forEach(function(src, idx){
-      var d = document.createElement('div'); d.className='thumb' + (idx===0?' active':'');
-      d.innerHTML = '<img src="'+esc(src)+'" alt="">';
-      d.addEventListener('click', function(){
-        var main = $('#mainImg'); if (main) main.src = src;
-        document.querySelectorAll('.thumb').forEach(function(t){ t.classList.remove('active'); });
-        d.classList.add('active');
+      $('#loading').style.display='none';
+      $('#wrap').style.display='grid';
+
+      $('#add').addEventListener('click', ()=>{
+        const qty = Math.max(1, Number($('#q').value||1));
+        const c = cart();
+        const idKey = p._id || p.id || p.slug; // store whatever key the backend gave us
+        const it = c.find(i => i.id === idKey);
+        if(it) it.qty += qty; else c.push({ id: idKey, qty });
+        saveCart(c);
+        updateCount();
+        $('#add').textContent = 'Added!';
+        setTimeout(()=> $('#add').textContent='Add to cart', 900);
       });
-      thumbs.appendChild(d);
-    });
-
-    gallery.appendChild(thumbs);
-    gallery.appendChild(stage);
-    return gallery;
-  }
-
-  // accordion
-  function accItem(title, html){
-    var box = document.createElement('div'); box.className='acc';
-    box.innerHTML =
-      '<div class="head"><strong>'+esc(title)+'</strong><span class="muted">toggle</span></div>' +
-      '<div class="body">'+html+'</div>';
-    box.querySelector('.head').addEventListener('click', function(){ box.classList.toggle('open'); });
-    return box;
-  }
-
-  // top quick actions wiring (WhatsApp)
-  function setQuickActions(product){
-    var title = product && product.title ? product.title : 'Product';
-    var link = location.href.split('#')[0];
-    var base = 'https://wa.me/23272146015?text=';
-    var chatText = encodeURIComponent('Hi, I want to chat about "' + title + '". ' + link);
-    var inquiryText = encodeURIComponent('Inquiry about "' + title + '". Here is the link: ' + link);
-
-    var chatA = $('#chatNowTop');
-    var inqA  = $('#sendInquiryTop');
-    if (chatA) { chatA.href = base + chatText; }
-    if (inqA)  { inqA.href  = base + inquiryText; }
-  }
-
-  // product render
-  function renderProduct(p){
-    var host = $('#product');
-    if (!p){
-      host.innerHTML = '<p class="muted">This product could not be found.</p>';
-      return;
+    }catch(e){
+      console.error(e);
+      $('#loading').style.display='none';
+      $('#error').style.display='block';
     }
-
-    // images
-    var imgs = Array.isArray(p.images) && p.images.length ? p.images.slice(0,8) : [p.image].filter(Boolean);
-
-    var left = buildGallery(imgs);
-
-    var right = document.createElement('div');
-    right.innerHTML =
-      '<h1 class="title">'+esc(p.title||'')+'</h1>' +
-      '<div class="row" style="justify-content:space-between">' +
-        '<div class="muted">Price shown below</div>' +
-        '<div class="stock '+(Number(p.stock||0)>5?'ok':(Number(p.stock||0)>0?'low':''))+'">' +
-          '<span>Stock: '+Number(p.stock||0)+'</span>' +
-        '</div>' +
-      '</div>' +
-      (p.sku ? '<div class="sku">SKU: '+esc(p.sku)+'</div>' : '') +
-      '<div class="sp"></div>' +
-      '<div class="row" style="gap:12px;align-items:center">'+
-        '<label class="muted">Qty</label>'+
-        '<div class="qty">'+
-          '<button type="button" id="dec">−</button>'+
-          '<input id="qty" type="number" min="1" value="1">'+
-          '<button type="button" id="inc">+</button>'+
-        '</div>'+
-      '</div>'+
-      '<div class="sp"></div>' +
-      '<div class="action-bar">' +
-        '<button class="btn ok" id="buy">Buy now</button>' +
-        '<div class="big-price" id="bigPrice">'+ money(p.price||0) +'</div>' +
-        '<button class="btn ghost" id="add">Add to cart</button>' +
-      '</div>'+
-      '<div class="sp"></div>';
-
-    // details accordion
-    var details = document.createElement('div');
-    var descHtml = '<p class="muted" style="white-space:pre-wrap">'+esc(p.desc||'No description yet.')+'</p>';
-    details.appendChild(accItem('Description', descHtml));
-
-    if (p.specs && typeof p.specs === 'object'){
-      var rows = Object.keys(p.specs).map(function(k){
-        return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line)"><b>'+esc(k)+'</b></td>'+
-               '<td style="padding:6px 8px;border-bottom:1px solid var(--line)">'+esc(String(p.specs[k]))+'</td></tr>';
-      }).join('');
-      var specsHtml = '<table style="width:100%;border-collapse:collapse">'+rows+'</table>';
-      details.appendChild(accItem('Specifications', specsHtml));
-    }
-
-    var shell = document.createElement('div');
-    shell.appendChild(left);
-    shell.appendChild(right);
-    host.appendChild(shell);
-    host.appendChild(details);
-
-    // qty controls
-    var qty = $('#qty');
-    $('#dec').onclick = function(){ qty.value = Math.max(1, parseInt(qty.value||'1',10)-1); };
-    $('#inc').onclick = function(){ qty.value = Math.max(1, parseInt(qty.value||'1',10)+1); };
-
-    // add/buy
-    function doAdd(){
-      var q = Math.max(1, parseInt(qty.value||'1',10));
-      if (Number.isFinite(Number(p.stock))) q = Math.min(q, Math.max(1, Number(p.stock)));
-      Store.addToCart(p.id, q);
-      updateCount();
-      toast('Added to cart');
-    }
-    $('#add').onclick = doAdd;
-    $('#buy').onclick = function(){ doAdd(); location.href = 'cart.html'; };
-
-    // top quick actions with WA
-    setQuickActions(p);
   }
 
-  // related
-  function card(x){
-    var el = document.createElement('div'); el.className='card';
-    el.innerHTML =
-      '<a href="product.html?id='+encodeURIComponent(x.id)+'"><img src="'+esc(x.image||'')+'" alt="'+esc(x.title||'')+'"></a>'+
-      '<div class="body">'+
-        '<a href="product.html?id='+encodeURIComponent(x.id)+'"><strong>'+esc(x.title||'')+'</strong></a>'+
-        '<div class="row" style="justify-content:space-between">'+
-          '<span>'+money(x.price||0)+'</span>'+
-          '<span class="badge">Stock '+Number(x.stock||0)+'</span>'+
-        '</div>'+
-        '<button class="btn ghost add">Add</button>'+
-      '</div>';
-    el.querySelector('.add').onclick = function(){
-      Store.addToCart(x.id, 1);
-      updateCount();
-      toast('Added to cart');
-    };
-    return el;
-  }
-
-  function renderRelated(current){
-    var rail = $('#rail'); rail.innerHTML='';
-    var all = Store.products().filter(function(p){ return p && p.id !== current.id; });
-    // Prefer same category first
-    var same = all.filter(function(p){ return p.category && current.category && p.category===current.category; });
-    var rest = all.filter(function(p){ return !same.includes(p); });
-    var picks = same.concat(rest).slice(0,12);
-    picks.forEach(function(p){ rail.appendChild(card(p)); });
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // Boot
-  // ─────────────────────────────────────────────────────────────
-  var id = getParam('id');
-  var product = id ? Store.getProduct(id) : null;
-  renderCrumbs(product || {});
-  if (product){
-    renderProduct(product);
-    renderRelated(product);
-  }else{
-    $('#product').innerHTML = '<p class="muted">Product not found.</p>';
-  }
-  updateCount();
+  boot();
 })();
 </script>
 </body>

@@ -66,7 +66,7 @@ const {
 
   // MongoDB
   MONGO_URI,
-  MONGO_DB, // <-- optional (db name)
+  MONGO_DB, // optional db override
 
   // Cloudinary
   CLOUDINARY_CLOUD_NAME,
@@ -80,6 +80,7 @@ const {
 } = process.env;
 
 const app = express();
+app.set('trust proxy', 1); // correct IPs behind proxies/Render/NGINX
 
 /* =========================
    Hardening + essentials
@@ -95,11 +96,13 @@ app.use(pinoHttp());
 const allowedOrigins = (ALLOW_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map(s => s.toLowerCase());
 const corsOptions = {
   origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin) return cb(null, true); // same-origin / curl
+    const o = origin.toLowerCase();
+    if (allowedOrigins.includes('*') || allowedOrigins.includes(o)) return cb(null, true);
     return cb(new Error('Not allowed by CORS: ' + origin));
   },
   methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
@@ -144,7 +147,7 @@ console.log('[ENV CHECK]',
   'ADMIN_EMAIL=', ADMIN_EMAIL,
   'WA_PHONE_ID=', WHATSAPP_PHONE_ID,
   'ADMIN_WA=', ADMIN_WA,
-  'TOKEN_SET=', !!WHATSAPP_TOKEN,
+  'TOKEN_SET=', !!(WHATSAPP_TOKEN && WHATSAPP_TOKEN.length),
   'MONGO_URI=', maskUri(MONGO_URI),
   'MONGO_DB=', MONGO_DB || '(none)',
   'ALLOW_ORIGINS=', ALLOW_ORIGINS
@@ -156,10 +159,8 @@ console.log('[ENV CHECK]',
 if (!MONGO_URI) {
   console.warn('⚠️  MONGO_URI not set. Orders will fail to persist.');
 } else {
-  // Print what DB name we’re actually going to use (helps with Atlas users scoped to a DB)
   const pathDb = (() => {
     try {
-      // crude parse: mongodb+srv://.../<db>?...
       const m = MONGO_URI.match(/mongodb\+srv:\/\/[^/]+\/([^?\/]+)?/i);
       return m && m[1] ? m[1] : '';
     } catch { return ''; }
@@ -172,10 +173,8 @@ if (!MONGO_URI) {
 
   mongoose.set('strictQuery', false);
   mongoose.connect(MONGO_URI, {
-    dbName: MONGO_DB || pathDb || undefined,  // prefer explicit DB
-    serverSelectionTimeoutMS: 20000,
-    // If your user is created in "admin", authSource can help — most Atlas users don’t need it:
-    // authSource: 'admin',
+    dbName: MONGO_DB || pathDb || undefined,
+    serverSelectionTimeoutMS: 20000
   })
   .then(() => console.log('[Mongo] connected ✅'))
   .catch(err => console.error('[Mongo] connect error →', err?.message || err));
@@ -184,7 +183,7 @@ if (!MONGO_URI) {
 mongoose.connection.on('error', (e) => console.error('[Mongo] runtime error →', e?.message || e));
 mongoose.connection.on('disconnected', () => console.warn('[Mongo] disconnected'));
 
-/* Quick DB ping route (for your browser) */
+/* Quick DB ping route */
 app.get('/api/db-ping', async (_req, res) => {
   try {
     if (!mongoose.connection || mongoose.connection.readyState !== 1) {
@@ -201,7 +200,7 @@ app.get('/api/db-ping', async (_req, res) => {
    Mongoose schema/model
    ========================= */
 const OrderSchema = new mongoose.Schema({
-  ref: String,
+  ref: { type: String, index: true },
   createdAt: { type: Date, default: Date.now },
   info: {
     name: String, phone: String, email: String, payment: String, address: String,
@@ -227,20 +226,30 @@ const Order = mongoose.models.Order || mongoose.model('Order', OrderSchema);
 /* =========================
    Email (Gmail App Password)
    ========================= */
-const mailer = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: Number(SMTP_PORT),
-  secure: Number(SMTP_PORT) === 465,
-  auth: { user: SMTP_USER, pass: SMTP_PASS }
-});
-mailer.verify((err) => {
-  if (err) {
-    console.error('SMTP VERIFY FAIL:', (err && err.message) || err);
-    console.error('Hint: 2-Step ON + App Password, or run DisplayUnlockCaptcha');
+let mailer = null;
+try {
+  mailer = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT),
+    secure: Number(SMTP_PORT) === 465,
+    auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
+  });
+  // Verify only if creds present
+  if (SMTP_USER && SMTP_PASS) {
+    mailer.verify((err) => {
+      if (err) {
+        console.error('SMTP VERIFY FAIL:', (err && err.message) || err);
+        console.error('Hint: 2-Step ON + App Password, or run DisplayUnlockCaptcha');
+      } else {
+        console.log(`SMTP OK (${SMTP_PORT} ${Number(SMTP_PORT) === 465 ? 'SSL' : 'TLS'})`);
+      }
+    });
   } else {
-    console.log(`SMTP OK (${SMTP_PORT} ${Number(SMTP_PORT) === 465 ? 'SSL' : 'TLS'})`);
+    console.warn('⚠️  SMTP creds not set — emails will be skipped.');
   }
-});
+} catch (e) {
+  console.error('Mailer init error:', e?.message || e);
+}
 
 /* =========================
    WhatsApp helpers
@@ -380,6 +389,7 @@ const ProofSchema = z.object({
 app.get('/', (_req, res) => res.json({ ok: true, name: 'LWG Notifier 2.0' }));
 
 app.post('/api/test-email', async (_req, res) => {
+  if (!mailer || !SMTP_USER) return res.status(503).json({ ok:false, error:'SMTP not configured' });
   try {
     const to = ADMIN_EMAIL || SMTP_USER;
     const info = await mailer.sendMail({
@@ -544,7 +554,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     const customerName  = get(order, 'info.name', 'Customer');
     const ref = order.ref || '';
 
-    if (customerEmail && changed.length) {
+    if (mailer && customerEmail && changed.length) {
       try {
         const pdf = await buildInvoicePdf(order);
         await mailer.sendMail({
@@ -663,27 +673,28 @@ async function handleCreateOrder(req, res) {
     try { pdfBuf = await buildInvoicePdf(orderForPdf); } catch {}
 
     // Email admin
-    try {
-      await mailer.sendMail({
-        from: MAIL_FROM || SMTP_USER,
-        to: ADMIN_EMAIL || SMTP_USER,
-        subject: `New Order ${ref} – LWG`,
-        html: `
-          <div style="font-family:system-ui,Segoe UI,Roboto,Arial">
-            <h2>New Order ${esc(ref)}</h2>
-            <p><b>Customer:</b> ${esc(name)}</p>
-            ${email ? `<p><b>Email:</b> ${esc(email)}</p>` : ''}
-            <p><b>Phone:</b> ${esc(phone)}</p>
-            <p><b>Payment:</b> ${esc(pay)}</p>
-            ${payHtml}
-            <p><b>Address:</b> ${esc(addr)}</p>
-            ${chargesHTML}
-            <p><b>Items:</b></p>
-            <ul>${itemsHtml}</ul>
-            ${proofUrl ? `<p><b>Payment proof:</b> <a href="${esc(proofUrl)}">${esc(proofUrl)}</a></p>` : ''}
-          </div>
-        `,
-        text:
+    if (mailer) {
+      try {
+        await mailer.sendMail({
+          from: MAIL_FROM || SMTP_USER,
+          to: ADMIN_EMAIL || SMTP_USER,
+          subject: `New Order ${ref} – LWG`,
+          html: `
+            <div style="font-family:system-ui,Segoe UI,Roboto,Arial">
+              <h2>New Order ${esc(ref)}</h2>
+              <p><b>Customer:</b> ${esc(name)}</p>
+              ${email ? `<p><b>Email:</b> ${esc(email)}</p>` : ''}
+              <p><b>Phone:</b> ${esc(phone)}</p>
+              <p><b>Payment:</b> ${esc(pay)}</p>
+              ${payHtml}
+              <p><b>Address:</b> ${esc(addr)}</p>
+              ${chargesHTML}
+              <p><b>Items:</b></p>
+              <ul>${itemsHtml}</ul>
+              ${proofUrl ? `<p><b>Payment proof:</b> <a href="${esc(proofUrl)}">${esc(proofUrl)}</a></p>` : ''}
+            </div>
+          `,
+          text:
 `New Order ${ref}
 Customer: ${name}
 ${email ? `Email: ${email}\n` : ''}Phone: ${phone}
@@ -697,12 +708,13 @@ Items:
 ${itemsTxt}
 
 ${proofUrl ? `Payment proof: ${proofUrl}\n` : ''}`,
-        attachments: pdfBuf ? [{ filename: `Receipt_${ref}.pdf`, content: pdfBuf }] : []
-      });
-    } catch (e) { console.error('Admin email failed:', e?.message || e); }
+          attachments: pdfBuf ? [{ filename: `Receipt_${ref}.pdf`, content: pdfBuf }] : []
+        });
+      } catch (e) { console.error('Admin email failed:', e?.message || e); }
+    }
 
     // Email customer
-    if (email) {
+    if (mailer && email) {
       try {
         await mailer.sendMail({
           from: MAIL_FROM || SMTP_USER,
@@ -913,7 +925,7 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
 /* =========================
    Start
    ========================= */
-const port = process.env.PORT || PORT || 5001;
+const port = Number(PORT) || 5001;
 app.listen(port, () => {
   console.log('✔ API running on port ' + port);
 });

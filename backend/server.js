@@ -917,6 +917,10 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
 /* =========================
    Start
    ========================= */
+import productsRoutes from './routes/products.js';
+app.use('/api/products', productsRoutes);
+
+
 const port = process.env.PORT || PORT || 5001;
 app.listen(port, () => {
   console.log('✔ API running on port ' + port);

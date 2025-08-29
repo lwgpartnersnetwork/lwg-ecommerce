@@ -73,81 +73,56 @@
   </main>
 
 <script>
-(() => {
-  /* ===== API base (same as index.html) ===== */
+(function(){
   const PROD_API = 'https://lwg-api.onrender.com';
   const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-      ? 'http://localhost:5001'
-      : PROD_API;
+    ? 'http://localhost:5001'
+    : PROD_API;
+  const LS_CART='lwg_cart';
 
-  const LS_CART = 'lwg_cart';
-  const $ = s => document.querySelector(s);
-  const money = n => 'NLe ' + Number(n||0).toLocaleString();
-
-  function getParam(name){ return new URLSearchParams(location.search).get(name); }
-  function cart(){ try{ return JSON.parse(localStorage.getItem(LS_CART)||'[]'); }catch{ return []; } }
+  function $(s){ return document.querySelector(s); }
+  function money(n){ return 'NLe ' + (Number(n||0)).toLocaleString(); }
+  function cart(){ try{return JSON.parse(localStorage.getItem(LS_CART)||'[]');}catch{return [];} }
   function saveCart(c){ localStorage.setItem(LS_CART, JSON.stringify(c)); }
-  function updateCount(){
-    const c = cart().reduce((s,i)=> s + Number(i.qty||0), 0);
-    $('#cartCount').textContent = c;
-  }
+  function updateCount(){ $('#cartCount').textContent = cart().reduce((s,i)=>s+(i.qty||0),0); }
+  function getParam(n){ return new URLSearchParams(location.search).get(n); }
 
+  /** Fetch single product */
   async function fetchProduct(idOrSlug){
-    const url = `${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`;
-    const r = await fetch(url, { headers: { 'Accept':'application/json' }, cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
-    if (!data?.ok || !data.product) throw new Error('Invalid response');
+    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`, {headers:{'Accept':'application/json'}});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'Invalid response');
     return data.product;
   }
 
   async function boot(){
     updateCount();
-    const id = getParam('id');
-    if (!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
-
+    const id=getParam('id');
+    if(!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
     try{
-      const p = await fetchProduct(id);
+      const p=await fetchProduct(id);
+      $('#title').textContent=p.title||'Product';
+      $('#price').textContent=money(p.price);
+      $('#desc').textContent=p.desc||'';
+      $('#img').src=p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/800x600?text=No+Image';
+      $('#img').alt=p.title||'Product';
 
-      // Title, price, description
-      const title = p.title || 'Product';
-      document.title = `${title} • LWG Store`;        // better tab/SEO title
-      $('#title').textContent = title;
-      $('#price').textContent = money(p.price);
-      $('#desc').textContent  = p.desc || '';
+      $('#loading').style.display='none';
+      $('#wrap').style.display='grid';
 
-      // Image (no caption/overlay, no title attribute)
-      const src = p.image || (Array.isArray(p.images) && p.images[0]) || '';
-      const imgEl = $('#img');
-      imgEl.removeAttribute('title');                 // ensure no tooltip/overlay
-      imgEl.alt = title;
-      imgEl.src = src || 'https://via.placeholder.com/1000x750?text=No+Image';
-      imgEl.onerror = () => { imgEl.src = 'https://via.placeholder.com/1000x750?text=No+Image'; };
-
-      // Show UI
-      $('#loading').style.display = 'none';
-      $('#wrap').style.display = 'grid';
-
-      // Add to cart
-      $('#add').addEventListener('click', () => {
-        const qty = Math.max(1, Number($('#q').value || 1));
-        const idKey = p.slug || p._id || p.id;
-        if (!idKey) return;
-
-        const c = cart();
-        const existing = c.find(i => i.id === idKey);
-        if (existing) existing.qty += qty;
-        else c.push({ id: idKey, qty });
-
+      $('#add').addEventListener('click',()=>{
+        const qty=Math.max(1,Number($('#q').value||1));
+        const c=cart();
+        const idKey=p._id||p.id||p.slug;
+        const it=c.find(i=>i.id===idKey);
+        if(it) it.qty+=qty; else c.push({id:idKey,qty});
         saveCart(c);
         updateCount();
-
-        const btn = $('#add');
-        const old = btn.textContent;
-        btn.textContent = 'Added!';
-        setTimeout(() => btn.textContent = old, 900);
+        $('#add').textContent='Added!';
+        setTimeout(()=>$('#add').textContent='Add to cart',900);
       });
-    } catch (e) {
+    }catch(e){
       console.error(e);
       $('#loading').style.display='none';
       $('#error').style.display='block';
@@ -159,3 +134,4 @@
 </script>
 </body>
 </html>
+

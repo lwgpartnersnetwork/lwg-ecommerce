@@ -11,6 +11,8 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';
 import PDFDocument from 'pdfkit';
+import productsRoutes from './routes/products.js';
+
 
 // ✅ Products route (import ONCE)
 import productsRoutes from './routes/products.js';
@@ -90,6 +92,8 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(pinoHttp());
+app.use('/api/products', productsRoutes);
+
 
 /* =========================
    CORS (with preflight)

@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';
 import PDFDocument from 'pdfkit';
 
-// ⬇️ NEW: Products route
+// ✅ Products route (import ONCE)
 import productsRoutes from './routes/products.js';
 
 /* =========================
@@ -417,7 +417,7 @@ app.get('/api/test-wa', async (req, res) => {
 });
 
 /* =========================
-   ⬇️ Mount Products API (the line you asked for)
+   ✅ Mount Products API (ONCE)
    ========================= */
 app.use('/api/products', productsRoutes);
 
@@ -917,10 +917,6 @@ app.get('/api/orders/receipt.pdf', noStore, async (req, res) => {
 /* =========================
    Start
    ========================= */
-import productsRoutes from './routes/products.js';
-app.use('/api/products', productsRoutes);
-
-
 const port = process.env.PORT || PORT || 5001;
 app.listen(port, () => {
   console.log('✔ API running on port ' + port);

@@ -7,7 +7,7 @@
 
   <!-- SEO -->
   <meta name="description"
-        content="Shop the LWG Partners Network store. Reliable delivery across Sierra Leone, secure checkout, and great prices."/>
+        content="Shop the LWG store. Reliable delivery across Sierra Leone, secure checkout, and great prices."/>
   <link rel="canonical" href="https://www.lwgpartnersnetwork.com/"/>
   <meta property="og:type" content="website"/>
   <meta property="og:title" content="LWG Store — Quality Products in Sierra Leone"/>
@@ -105,118 +105,94 @@
   </footer>
 
 <script>
-(() => {
-  /* ===== API base =====
-     - Local dev → http://localhost:5001
-     - Production → https://lwg-api.onrender.com (Render)
-  */
+(function(){
   const PROD_API = 'https://lwg-api.onrender.com';
   const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-      ? 'http://localhost:5001'
-      : PROD_API;
+    ? 'http://localhost:5001'
+    : PROD_API;
 
-  /* ===== Helpers ===== */
-  const $ = s => document.querySelector(s);
+  const $ = (s) => document.querySelector(s);
+  const money = (n) => 'NLe ' + (Number(n||0)).toLocaleString();
   const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-  const money = n => 'NLe ' + Number(n||0).toLocaleString();
-  const grid = $('#grid');
-  const empty = $('#empty');
-  const pager = $('#pager');
-  const prevBtn = $('#prev');
-  const nextBtn = $('#next');
-  const pageNote = $('#pageNote');
 
+  // cart count
   function cartCount(){
-    try { return (JSON.parse(localStorage.getItem('lwg_cart')||'[]')||[])
-      .reduce((s,i)=>s+Number(i.qty||0),0); } catch { return 0; }
+    try { return JSON.parse(localStorage.getItem('lwg_cart')||'[]').reduce((s,i)=>s+(i.qty||0),0); }
+    catch{ return 0; }
   }
-  $('#cartCount').textContent = cartCount();
-  $('#y').textContent = new Date().getFullYear();
+  function updateCount(){ $('#cartCount').textContent = cartCount(); }
 
-  /* ===== Fetch products ===== */
-  async function fetchProducts({ q='', page=1, pageSize=12 } = {}){
+  /** Fetch product list */
+  async function fetchProducts({ q='', category='', min, max, page=1, pageSize=12 } = {}){
     const qs = new URLSearchParams();
     if (q) qs.set('q', q);
+    if (category) qs.set('category', category);
+    if (min) qs.set('min', min);
+    if (max) qs.set('max', max);
     qs.set('page', page);
     qs.set('pageSize', pageSize);
 
     const url = `${API_BASE}/api/products?${qs.toString()}`;
-    const r = await fetch(url, { headers: { 'Accept':'application/json' }});
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
-    if (!data?.ok) throw new Error(data?.error || 'Invalid response');
-    return { products: data.products || [], total: Number(data.total||0) };
+    const res = await fetch(url, { headers:{'Accept':'application/json'}});
+    if (!res.ok) throw new Error('HTTP '+res.status);
+
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error||'Invalid response');
+    return { products: data.products||[], total: data.total||0 };
   }
 
-  /* ===== Rendering ===== */
-  function skeleton(){ const d=document.createElement('div'); d.className='skeleton'; return d; }
+  const grid = $('#grid');
+  const empty = $('#empty');
 
-  function card(p){
+  function productCard(p){
     const el = document.createElement('article');
     el.className = 'card';
+    const img = esc(p.image || (p.images && p.images[0]) || '');
     const title = esc(p.title || 'Product');
-    const img = esc(p.image || (Array.isArray(p.images)&&p.images[0]) || '');
-    const price = p.price || 0;
-
     el.innerHTML = `
       <img class="thumb" src="${img}" alt="${title}"
-           onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
+        onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
       <div class="body">
         <div class="title">${title}</div>
-        <span class="pill">Nationwide delivery</span>
-        <div class="price">${money(price)}</div>
-      </div>
-    `;
-    el.addEventListener('click', () => {
+        <div class="pill">Sierra Leone delivery</div>
+        <div class="row"><div class="price">${money(p.price)}</div></div>
+      </div>`;
+    el.addEventListener('click',()=>{
       const idOrSlug = p.slug || p._id || p.id;
-      if (idOrSlug) location.href = 'product.html?id=' + encodeURIComponent(idOrSlug);
+      if(idOrSlug) location.href = 'product.html?id='+encodeURIComponent(idOrSlug);
     });
     return el;
   }
 
-  let state = { q:'', page:1, pageSize:12, total:0 };
-  function setPager(total, page, pageSize){
-    state = { ...state, total, page, pageSize };
-    const pages = Math.max(1, Math.ceil(total / pageSize));
-    if (pages <= 1){ pager.style.display = 'none'; return; }
-    pager.style.display = 'flex';
-    pageNote.textContent = `Page ${page} of ${pages}`;
-    prevBtn.disabled = page <= 1;
-    nextBtn.disabled = page >= pages;
-  }
-
-  async function render({ q=state.q, page=1, pageSize=12 } = {}){
+  async function render({ q='', page=1, pageSize=12 }={}){
     grid.innerHTML = '';
-    for (let i=0;i<pageSize;i++) grid.appendChild(skeleton());
-    empty.style.display = 'none';
-    try {
-      const { products, total } = await fetchProducts({ q, page, pageSize });
-      grid.innerHTML = '';
-      if (!products.length) { empty.style.display = 'block'; }
-      else products.forEach(p => grid.appendChild(card(p)));
-      setPager(total, page, pageSize);
-    } catch (e) {
-      grid.innerHTML = '';
+    empty.style.display='none';
+    try{
+      const {products,total} = await fetchProducts({q,page,pageSize});
+      if(!products.length){
+        empty.style.display='block';
+      }else{
+        products.forEach(p=>grid.appendChild(productCard(p)));
+      }
+    }catch(e){
       empty.textContent = 'Failed to load products. Please retry.';
-      empty.style.display = 'block';
-      console.error('Products fetch error:', e);
+      empty.style.display='block';
+      console.error(e);
     }
   }
 
-  prevBtn.addEventListener('click', () => state.page>1 && render({ page: state.page-1 }));
-  nextBtn.addEventListener('click', () => {
-    const pages = Math.max(1, Math.ceil(state.total/state.pageSize));
-    if (state.page < pages) render({ page: state.page+1 });
-  });
-
-  $('#searchForm').addEventListener('submit', e => {
+  // search
+  $('#searchForm').addEventListener('submit', e=>{
     e.preventDefault();
-    const q = ($('#q').value || '').trim();
-    render({ q, page:1 });
+    render({ q:$('#q').value.trim(), page:1, pageSize:12 });
   });
 
-  render(); // initial
+  // boot
+  $('#y').textContent=new Date().getFullYear();
+  updateCount();
+  render();
 })();
 </script>
 </body>
 </html>
+

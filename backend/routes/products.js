@@ -1,14 +1,8 @@
-// routes/products.js
 import express from 'express';
 import Product from '../models/Product.js';
 
 const router = express.Router();
 
-/**
- * GET /api/products
- * Query params:
- *   q=search , category= , min= , max= , page= , pageSize=
- */
 router.get('/', async (req, res) => {
   try {
     const {
@@ -48,9 +42,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/products/:idOrSlug
- */
 router.get('/:idOrSlug', async (req, res) => {
   try {
     const { idOrSlug } = req.params;

@@ -7,7 +7,6 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import nodemailer from 'nodemailer';
-import fetch from 'node-fetch';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';

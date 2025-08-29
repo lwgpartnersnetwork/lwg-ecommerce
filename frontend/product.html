@@ -3,11 +3,24 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Product • LWG</title>
+  <title>Product • LWG Store</title>
+
+  <!-- SEO -->
+  <meta name="description" content="View product details and checkout securely with LWG Partners Network."/>
+  <link rel="canonical" href="https://www.lwgpartnersnetwork.com/product.html"/>
+  <meta property="og:type" content="product"/>
+  <meta property="og:title" content="Product • LWG Store"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+
+  <!-- simple inline favicon (no file needed) -->
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
     :root{ --bg:#0b1220;--line:#1f2937;--muted:#9ca3af;--text:#e5e7eb; --price:#ef4444; }
-    body{background:var(--bg);color:var(--text)}
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
+    a{color:inherit}
     .container{max-width:1000px;margin:24px auto;padding:0 16px}
     .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
     .btn{padding:10px 14px;border-radius:10px;border:1px solid #1e40af;background:#1d4ed8;color:#fff;cursor:pointer}
@@ -15,17 +28,24 @@
     .muted{color:var(--muted)}
     .grid{display:grid;gap:16px}
     @media (min-width:860px){ .grid{ grid-template-columns: 1fr 1.1fr; align-items:start } }
-    .thumb{width:100%;height:360px;object-fit:cover;background:#111827;border:1px solid var(--line);border-radius:14px}
+
+    .thumb{
+      width:100%;height:360px;object-fit:cover;background:#111827;
+      border:1px solid var(--line);border-radius:14px;
+    }
+    /* ensure no “write-up” overlay/caption */
+    .thumb[title]{ title: none; } /* browsers ignore, but we don't set title anyway */
+
     .price{color:var(--price);font-weight:800;font-size:22px;margin:8px 0}
     .qty{display:flex;gap:8px;align-items:center;margin:12px 0}
     input[type=number]{width:90px;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
-    .loading,.empty,.error{color:var(--muted);margin-top:10px}
+    .loading,.error{color:var(--muted);margin-top:10px}
   </style>
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html" class="muted">← Back</a>
-    <a href="cart.html" class="btn ghost">Cart (<span id="cartCount">0</span>)</a>
+    <a href="index.html" class="muted" aria-label="Back to store">← Back</a>
+    <a href="cart.html" class="btn ghost" aria-label="Open cart">Cart (<span id="cartCount">0</span>)</a>
   </nav>
 
   <main class="container">
@@ -34,7 +54,8 @@
 
     <section id="wrap" class="grid" style="display:none">
       <div>
-        <img id="img" class="thumb" src="" alt=""/>
+        <!-- important: no title attr, and hard onerror placeholder so no overlay/write-up appears -->
+        <img id="img" class="thumb" src="" alt="">
       </div>
       <div>
         <h1 id="title" style="margin:0 0 8px">Product</h1>
@@ -43,7 +64,7 @@
 
         <div class="qty">
           <label for="q" class="muted">Qty</label>
-          <input id="q" type="number" min="1" value="1"/>
+          <input id="q" type="number" min="1" value="1" inputmode="numeric">
         </div>
 
         <button id="add" class="btn">Add to cart</button>
@@ -52,54 +73,81 @@
   </main>
 
 <script>
-(function(){
-  const API_BASE = 'https://lwg-api.onrender.com';
-  const LS_CART  = 'lwg_cart';
+(() => {
+  /* ===== API base (same as index.html) ===== */
+  const PROD_API = 'https://lwg-api.onrender.com';
+  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://localhost:5001'
+      : PROD_API;
 
-  function $(s){ return document.querySelector(s); }
-  function money(n){ const num = Number(n||0); return 'NLe ' + (Number.isFinite(num)? num.toLocaleString(): n); }
+  const LS_CART = 'lwg_cart';
+  const $ = s => document.querySelector(s);
+  const money = n => 'NLe ' + Number(n||0).toLocaleString();
+
+  function getParam(name){ return new URLSearchParams(location.search).get(name); }
   function cart(){ try{ return JSON.parse(localStorage.getItem(LS_CART)||'[]'); }catch{ return []; } }
   function saveCart(c){ localStorage.setItem(LS_CART, JSON.stringify(c)); }
-  function updateCount(){ const c=cart().reduce((s,i)=>s+Number(i.qty||0),0); $('#cartCount').textContent=c; }
-  function getParam(name){ return new URLSearchParams(location.search).get(name); }
+  function updateCount(){
+    const c = cart().reduce((s,i)=> s + Number(i.qty||0), 0);
+    $('#cartCount').textContent = c;
+  }
 
   async function fetchProduct(idOrSlug){
-    const resp = await fetch(`${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`, { cache:'no-store' });
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const data = await resp.json();
+    const url = `${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`;
+    const r = await fetch(url, { headers: { 'Accept':'application/json' }, cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    if (!data?.ok || !data.product) throw new Error('Invalid response');
     return data.product;
   }
 
   async function boot(){
     updateCount();
     const id = getParam('id');
-    if(!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
+    if (!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
 
     try{
       const p = await fetchProduct(id);
-      $('#title').textContent = p.title || 'Product';
+
+      // Title, price, description
+      const title = p.title || 'Product';
+      document.title = `${title} • LWG Store`;        // better tab/SEO title
+      $('#title').textContent = title;
       $('#price').textContent = money(p.price);
       $('#desc').textContent  = p.desc || '';
-      const img = p.image || '';
-      const el = $('#img');
-      el.src = img || 'https://via.placeholder.com/800x600?text=No+Image';
-      el.alt = (p.title||'').replace(/"/g,'&quot;');
 
-      $('#loading').style.display='none';
-      $('#wrap').style.display='grid';
+      // Image (no caption/overlay, no title attribute)
+      const src = p.image || (Array.isArray(p.images) && p.images[0]) || '';
+      const imgEl = $('#img');
+      imgEl.removeAttribute('title');                 // ensure no tooltip/overlay
+      imgEl.alt = title;
+      imgEl.src = src || 'https://via.placeholder.com/1000x750?text=No+Image';
+      imgEl.onerror = () => { imgEl.src = 'https://via.placeholder.com/1000x750?text=No+Image'; };
 
-      $('#add').addEventListener('click', ()=>{
-        const qty = Math.max(1, Number($('#q').value||1));
+      // Show UI
+      $('#loading').style.display = 'none';
+      $('#wrap').style.display = 'grid';
+
+      // Add to cart
+      $('#add').addEventListener('click', () => {
+        const qty = Math.max(1, Number($('#q').value || 1));
+        const idKey = p.slug || p._id || p.id;
+        if (!idKey) return;
+
         const c = cart();
-        const idKey = p._id || p.id || p.slug; // store whatever key the backend gave us
-        const it = c.find(i => i.id === idKey);
-        if(it) it.qty += qty; else c.push({ id: idKey, qty });
+        const existing = c.find(i => i.id === idKey);
+        if (existing) existing.qty += qty;
+        else c.push({ id: idKey, qty });
+
         saveCart(c);
         updateCount();
-        $('#add').textContent = 'Added!';
-        setTimeout(()=> $('#add').textContent='Add to cart', 900);
+
+        const btn = $('#add');
+        const old = btn.textContent;
+        btn.textContent = 'Added!';
+        setTimeout(() => btn.textContent = old, 900);
       });
-    }catch(e){
+    } catch (e) {
       console.error(e);
       $('#loading').style.display='none';
       $('#error').style.display='block';

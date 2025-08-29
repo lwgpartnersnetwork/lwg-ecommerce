@@ -3,22 +3,41 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LWG Store</title>
+  <title>LWG Store — Quality Products in Sierra Leone</title>
+
+  <!-- SEO -->
+  <meta name="description"
+        content="Shop the LWG Partners Network store. Reliable delivery across Sierra Leone, secure checkout, and great prices."/>
+  <link rel="canonical" href="https://www.lwgpartnersnetwork.com/"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="LWG Store — Quality Products in Sierra Leone"/>
+  <meta property="og:description"
+        content="Explore featured products and enjoy fast, reliable delivery across Sierra Leone."/>
+  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+  <!-- Inline SVG favicon (no file needed) -->
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+
+  <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
     :root{
       --bg:#0b1220;--line:#1f2937;--muted:#9ca3af;--text:#e5e7eb;
       --pill-bg:#0f172a;--pill-border:#374151;--price:#ef4444;
+      --brand:#c5d3f6;
     }
-    body{background:var(--bg);color:var(--text)}
-    .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);white-space:nowrap}
-    .nav .row{display:flex;gap:10px;align-items:center;flex-wrap:nowrap}
-    .btn.ghost{border:1px solid #374151;background:#0f172a;color:#e5e7eb;padding:8px 12px;border-radius:10px;text-decoration:none}
-    .badge{background:#1f2937;border:1px solid #374151;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:4px}
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
+    a{color:inherit}
+    .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+    .brand a{display:flex;gap:10px;align-items:center;text-decoration:none}
+    .brand .logo{width:28px;height:28px;border-radius:8px;background:#0f172a;border:1px solid #1f2937;display:grid;place-items:center;color:var(--brand);font-weight:700}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:nowrap}
+    .btn{border:1px solid #374151;background:#0f172a;color:#e5e7eb;padding:8px 12px;border-radius:10px;text-decoration:none;cursor:pointer}
     .muted{color:var(--muted)}
     .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{margin:8px 0 12px;font-size:32px}
 
-    /* grid + card */
     .grid{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
     @media (min-width:720px){ .grid{grid-template-columns:repeat(3,1fr)} }
     @media (min-width:1100px){ .grid{grid-template-columns:repeat(4,1fr)} }
@@ -29,59 +48,55 @@
     .body{padding:12px}
     .title{font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.6em}
     .pill{display:inline-block;margin-top:8px;font-size:13px;background:var(--pill-bg);border:1px solid var(--pill-border);color:#c5d3f6;padding:6px 10px;border-radius:10px}
-    .row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
-    .price{color:var(--price);font-weight:800;font-size:18px}
+    .price{color:var(--price);font-weight:800;font-size:18px;margin-top:10px}
     .footer{border-top:1px solid var(--line);padding:16px;text-align:center;color:var(--muted)}
-    .empty{color:var(--muted);margin-top:10px}
+    .empty{color:var(--muted);margin-top:14px}
 
-    /* lightweight skeletons */
-    .skeleton{
-      position:relative;overflow:hidden;background:#111827;border-radius:12px;border:1px solid #1f2937;height:260px
-    }
-    .skeleton::after{
-      content:'';position:absolute;inset:0;transform:translateX(-100%);
-      background:linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
-      animation:shimmer 1.2s infinite;
-    }
-    @keyframes shimmer{ 100%{ transform:translateX(100%); } }
+    /* simple input */
+    input.input{background:#0f172a;border:1px solid #374151;border-radius:10px;color:#e5e7eb;padding:10px 12px;outline:none}
+    input.input::placeholder{color:#6b7280}
+
+    /* skeletons */
+    .skeleton{position:relative;overflow:hidden;background:#111827;border-radius:16px;border:1px solid #1f2937;height:260px}
+    .skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
+      animation:shimmer 1.2s infinite}
+    @keyframes shimmer{100%{transform:translateX(100%)}}
   </style>
 </head>
 <body>
-  <!-- Top navigation -->
-  <nav class="nav">
+  <!-- NAV -->
+  <nav class="nav" aria-label="Main navigation">
     <div class="brand">
-      <a href="index.html" style="display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none">
-        <span>LWG Store</span>
-        <span class="badge">Shop</span>
+      <a href="index.html" aria-label="LWG Store">
+        <span class="logo">L</span>
+        <strong>LWG Store</strong>
       </a>
     </div>
     <div class="row">
-      <a href="index.html" class="muted">Home</a>
-      <a href="cart.html" class="btn ghost">Cart (<span id="cartCount">0</span>)</a>
+      <a href="cart.html" class="btn">Cart (<span id="cartCount">0</span>)</a>
       <a href="order-tracking.html" class="muted">tracking</a>
     </div>
   </nav>
 
-  <!-- MAIN content -->
+  <!-- MAIN -->
   <main class="container">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <h1 style="margin:8px 0 12px">Featured Products</h1>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+      <h1>Featured Products</h1>
 
-      <!-- simple search -->
       <form id="searchForm" class="row" style="margin-left:auto;gap:8px;flex-wrap:nowrap">
-        <input id="q" class="input" placeholder="Search products…" style="min-width:220px">
-        <button class="btn ghost" type="submit" aria-label="Search">Search</button>
+        <input id="q" class="input" placeholder="Search products…" aria-label="Search products" style="min-width:220px">
+        <button class="btn" type="submit">Search</button>
       </form>
     </div>
 
-    <div id="grid" class="grid"></div>
-    <p id="empty" class="empty" style="display:none">No products yet. Add some in the Admin Dashboard, then refresh.</p>
+    <div id="grid" class="grid" aria-live="polite"></div>
+    <p id="empty" class="empty" style="display:none">No products yet. Add some in Admin, then refresh.</p>
 
-    <!-- pager -->
     <div id="pager" class="row" style="justify-content:center;margin-top:16px;display:none">
-      <button id="prev" class="btn ghost" type="button">Prev</button>
+      <button id="prev" class="btn" type="button">Prev</button>
       <span id="pageNote" class="muted"></span>
-      <button id="next" class="btn ghost" type="button">Next</button>
+      <button id="next" class="btn" type="button">Next</button>
     </div>
   </main>
 
@@ -90,71 +105,57 @@
   </footer>
 
 <script>
-
-  (function(){
-  /* =======================
-     API base
-     ======================= */
-  const API_BASE =
-    window.__LWG_API__ ||
-    (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+(() => {
+  /* ===== API base =====
+     - Local dev → http://localhost:5001
+     - Production → https://lwg-api.onrender.com (Render)
+  */
+  const PROD_API = 'https://lwg-api.onrender.com';
+  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
       ? 'http://localhost:5001'
-      : ''); // same-origin in production
+      : PROD_API;
 
-  // Example usage:
-  fetch(`${API_BASE}/api/products`)
-    .then(r => r.json())
-    .then(data => console.log(data));
-})();
-
-
-  /* =======================
-     Minimal helpers
-     ======================= */
-  const $ = (s) => document.querySelector(s);
-  const money = (n) => {
-    const num = Number(n||0);
-    try { return 'NLe ' + num.toLocaleString(); } catch { return 'NLe ' + num; }
-  };
+  /* ===== Helpers ===== */
+  const $ = s => document.querySelector(s);
   const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const money = n => 'NLe ' + Number(n||0).toLocaleString();
+  const grid = $('#grid');
+  const empty = $('#empty');
+  const pager = $('#pager');
+  const prevBtn = $('#prev');
+  const nextBtn = $('#next');
+  const pageNote = $('#pageNote');
 
-  // cart count from localStorage (existing front-end convention)
   function cartCount(){
-    try {
-      const list = JSON.parse(localStorage.getItem('lwg_cart') || '[]');
-      return list.reduce((s,i)=> s + Number(i.qty||0), 0);
-    } catch { return 0; }
+    try { return (JSON.parse(localStorage.getItem('lwg_cart')||'[]')||[])
+      .reduce((s,i)=>s+Number(i.qty||0),0); } catch { return 0; }
   }
-  function updateCount(){ $('#cartCount').textContent = cartCount(); }
+  $('#cartCount').textContent = cartCount();
+  $('#y').textContent = new Date().getFullYear();
 
-  /* =======================
-     Fetch products
-     ======================= */
+  /* ===== Fetch products ===== */
   async function fetchProducts({ q='', page=1, pageSize=12 } = {}){
     const qs = new URLSearchParams();
     if (q) qs.set('q', q);
-    qs.set('page', String(page));
-    qs.set('pageSize', String(pageSize));
+    qs.set('page', page);
+    qs.set('pageSize', pageSize);
 
-    const url = `${API_BASE}/api/products?` + qs.toString();
+    const url = `${API_BASE}/api/products?${qs.toString()}`;
     const r = await fetch(url, { headers: { 'Accept':'application/json' }});
     if (!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
-    if (!data || data.ok !== true) throw new Error(data?.error || 'Invalid response');
+    if (!data?.ok) throw new Error(data?.error || 'Invalid response');
     return { products: data.products || [], total: Number(data.total||0) };
   }
 
-  /* =======================
-     Rendering
-     ======================= */
-  const grid = $('#grid');
-  const empty = $('#empty');
+  /* ===== Rendering ===== */
+  function skeleton(){ const d=document.createElement('div'); d.className='skeleton'; return d; }
 
-  function productCard(p){
+  function card(p){
     const el = document.createElement('article');
     el.className = 'card';
     const title = esc(p.title || 'Product');
-    const img = esc((p.image || (Array.isArray(p.images)&&p.images[0]) || ''));
+    const img = esc(p.image || (Array.isArray(p.images)&&p.images[0]) || '');
     const price = p.price || 0;
 
     el.innerHTML = `
@@ -162,107 +163,60 @@
            onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
       <div class="body">
         <div class="title">${title}</div>
-        <div class="pill">Sierra Leone delivery</div>
-        <div class="row">
-          <div class="price">${money(price)}</div>
-        </div>
+        <span class="pill">Nationwide delivery</span>
+        <div class="price">${money(price)}</div>
       </div>
     `;
-
     el.addEventListener('click', () => {
       const idOrSlug = p.slug || p._id || p.id;
-      if (!idOrSlug) return;
-      location.href = 'product.html?id=' + encodeURIComponent(idOrSlug);
+      if (idOrSlug) location.href = 'product.html?id=' + encodeURIComponent(idOrSlug);
     });
     return el;
   }
 
-  function skeletonCard(){
-    const el = document.createElement('div');
-    el.className = 'skeleton';
-    return el;
+  let state = { q:'', page:1, pageSize:12, total:0 };
+  function setPager(total, page, pageSize){
+    state = { ...state, total, page, pageSize };
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    if (pages <= 1){ pager.style.display = 'none'; return; }
+    pager.style.display = 'flex';
+    pageNote.textContent = `Page ${page} of ${pages}`;
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= pages;
   }
 
-  async function render({ q='', page=1, pageSize=12 } = {}){
-    // skeletons
+  async function render({ q=state.q, page=1, pageSize=12 } = {}){
     grid.innerHTML = '';
-    for (let i=0;i<pageSize;i++) grid.appendChild(skeletonCard());
+    for (let i=0;i<pageSize;i++) grid.appendChild(skeleton());
     empty.style.display = 'none';
-
-    try{
+    try {
       const { products, total } = await fetchProducts({ q, page, pageSize });
-
       grid.innerHTML = '';
-      if (!products.length){
-        empty.style.display = 'block';
-      } else {
-        products.forEach(p => grid.appendChild(productCard(p)));
-      }
-
-      // pagination UI
-      setupPager({ total, page, pageSize, q });
-    }catch(err){
+      if (!products.length) { empty.style.display = 'block'; }
+      else products.forEach(p => grid.appendChild(card(p)));
+      setPager(total, page, pageSize);
+    } catch (e) {
       grid.innerHTML = '';
       empty.textContent = 'Failed to load products. Please retry.';
       empty.style.display = 'block';
-      console.error('Products fetch error:', err);
+      console.error('Products fetch error:', e);
     }
   }
 
-  /* =======================
-     Simple pagination
-     ======================= */
-  const pager = $('#pager');
-  const prevBtn = $('#prev');
-  const nextBtn = $('#next');
-  const pageNote = $('#pageNote');
-  let state = { q:'', page:1, pageSize:12, total:0 };
-
-  function setupPager({ total, page, pageSize, q }){
-    state = { total, page, pageSize, q };
-    const pages = Math.max(1, Math.ceil(total / pageSize));
-    if (pages <= 1){
-      pager.style.display = 'none';
-      return;
-    }
-    pageNote.textContent = `Page ${page} of ${pages}`;
-    prevBtn.disabled = (page <= 1);
-    nextBtn.disabled = (page >= pages);
-    pager.style.display = 'flex';
-  }
-
-  prevBtn.addEventListener('click', () => {
-    if (state.page > 1){
-      render({ q: state.q, page: state.page - 1, pageSize: state.pageSize });
-    }
-  });
+  prevBtn.addEventListener('click', () => state.page>1 && render({ page: state.page-1 }));
   nextBtn.addEventListener('click', () => {
-    const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
-    if (state.page < pages){
-      render({ q: state.q, page: state.page + 1, pageSize: state.pageSize });
-    }
+    const pages = Math.max(1, Math.ceil(state.total/state.pageSize));
+    if (state.page < pages) render({ page: state.page+1 });
   });
 
-  /* =======================
-     Search
-     ======================= */
-  const searchForm = $('#searchForm');
-  const qInput = $('#q');
-  searchForm.addEventListener('submit', (e) => {
+  $('#searchForm').addEventListener('submit', e => {
     e.preventDefault();
-    const q = (qInput.value || '').trim();
-    render({ q, page:1, pageSize:12 });
+    const q = ($('#q').value || '').trim();
+    render({ q, page:1 });
   });
 
-  /* =======================
-     Boot
-     ======================= */
-  $('#y').textContent = new Date().getFullYear();
-  updateCount();
   render(); // initial
-
 })();
 </script>
 </body>
 </html>
-

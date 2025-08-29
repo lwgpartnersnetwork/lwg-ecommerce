@@ -31,3 +31,14 @@ async function fetchProducts({ q='', category='', min, max, page=1, pageSize=12 
 
   return data; // { ok:true, total, products:[...] }
 }
+
+
+import express from 'express';
+import Product from '../models/Product.js';
+
+const router = express.Router();
+
+/* ... your GET / and GET /:idOrSlug handlers ... */
+
+export default router;     // 👈 make sure this line exists
+

@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>LWG Store — Quality Products in Sierra Leone</title>
+
+  <!-- PAGE TITLE -->
+  <title>LWG Partners Network Store — Quality Products & Reliable Delivery in Sierra Leone</title>
 
   <!-- Primary SEO -->
-  <meta name="description" content="LWG Partners Network Store — quality products with reliable delivery across Sierra Leone."/>
+  <meta name="description" content="Shop the LWG Partners Network Store for quality products with reliable delivery across Sierra Leone. Fast checkout, order tracking, and trusted service."/>
   <meta name="keywords" content="LWG Partners Network, LWG Store, Sierra Leone, E-commerce, Clothing, Electronics, Delivery, Foundation, Logistics"/>
   <meta name="robots" content="index, follow"/>
   <link rel="canonical" href="https://www.lwgpartnersnetwork.com/"/>
@@ -14,21 +16,26 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website"/>
   <meta property="og:site_name" content="LWG Partners Network"/>
-  <meta property="og:title" content="LWG Store — Quality Products in Sierra Leone"/>
+  <meta property="og:title" content="LWG Partners Network Store"/>
   <meta property="og:description" content="Explore featured products and enjoy fast, reliable delivery across Sierra Leone."/>
   <meta property="og:url" content="https://www.lwgpartnersnetwork.com/"/>
-  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+  <meta property="og:image" content="https://www.lwgpartnersnetwork.com/image/og-image-1200x630.png"/>
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="LWG Store — Quality Products in Sierra Leone"/>
+  <meta name="twitter:title" content="LWG Partners Network Store"/>
   <meta name="twitter:description" content="Shop with LWG Partners Network — Creating Impact Globally."/>
-  <meta name="twitter:image" content="/frontend/images/og-image-1200x630.png"/>
+  <meta name="twitter:image" content="https://www.lwgpartnersnetwork.com/image/og-image-1200x630.png"/>
 
-  <!-- Icons -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/frontend/images/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="64x64" href="/frontend/images/favicon-64.png">
-  <link rel="apple-touch-icon" href="/frontend/images/logo-512.png">
+  <!-- Favicons (true circular transparent icons) -->
+  <link rel="icon" type="image/png" sizes="16x16" href="image/favicon-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="image/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="image/favicon-48.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="image/favicon-64.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="image/apple-touch-icon-180.png">
+  <link rel="icon" sizes="192x192" href="image/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="image/logo-512.png">
+  <link rel="icon" href="/favicon.ico"> <!-- optional fallback -->
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css"/>
@@ -73,22 +80,34 @@
     @keyframes shimmer{100%{transform:translateX(100%)}}
   </style>
 
-  <!-- JSON-LD (Organization + Website) -->
+  <!-- JSON-LD (Organization + Website with SearchAction) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "LWG Partners Network",
     "url": "https://www.lwgpartnersnetwork.com/",
-    "logo": "https://www.lwgpartnersnetwork.com/frontend/images/logo-512.png",
+    "logo": "https://www.lwgpartnersnetwork.com/image/logo-512.png",
     "sameAs": []
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "url": "https://www.lwgpartnersnetwork.com/",
+    "name": "LWG Partners Network Store",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.lwgpartnersnetwork.com/index.html?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
   }
   </script>
 </head>
 <body>
   <!-- Config for API base -->
   <script>
-    // In production, API is your Render backend; locally it uses localhost
     window.__LWG_API__ = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
       ? 'http://localhost:5001'
       : 'https://lwg-api.onrender.com';
@@ -133,11 +152,9 @@
     © <span id="y"></span> LWG Partners Network — Creating Impact Globally
   </footer>
 
-  <!-- App script (single source of truth for fetching) -->
+  <!-- App script -->
   <script type="module">
-    // Single API base (from window.__LWG_API__)
     const API_BASE = window.__LWG_API__;
-
     const $ = (s) => document.querySelector(s);
     const money = (n) => {
       const num = Number(n||0);
@@ -145,14 +162,12 @@
     };
     const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
-    // cart count (localStorage)
     function cartCount(){
       try { return JSON.parse(localStorage.getItem('lwg_cart')||'[]').reduce((s,i)=>s+(i.qty||0),0); }
       catch { return 0; }
     }
     function updateCount(){ $('#cartCount').textContent = cartCount(); }
 
-    // Fetch product list
     async function fetchProducts({ q='', category='', min, max, page=1, pageSize=12 } = {}){
       const qs = new URLSearchParams();
       if (q) qs.set('q', q);
@@ -218,8 +233,6 @@
     async function render({ q='', page=1, pageSize=12 } = {}){
       grid.innerHTML = '';
       empty.style.display = 'none';
-
-      // quick skeletons
       for (let i=0;i<pageSize;i++){
         const sk = document.createElement('div');
         sk.className = 'skeleton';
@@ -244,7 +257,6 @@
       }
     }
 
-    // pagination
     prevBtn?.addEventListener('click', () => {
       if (state.page > 1) render({ q: state.q, page: state.page - 1, pageSize: state.pageSize });
     });
@@ -253,7 +265,6 @@
       if (state.page < pages) render({ q: state.q, page: state.page + 1, pageSize: state.pageSize });
     });
 
-    // search
     const searchForm = $('#searchForm');
     const qInput = $('#q');
     searchForm.addEventListener('submit', (e) => {
@@ -262,7 +273,6 @@
       render({ q, page:1, pageSize:12 });
     });
 
-    // boot
     $('#y').textContent = new Date().getFullYear();
     updateCount();
     render();

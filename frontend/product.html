@@ -5,15 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Product • LWG Store</title>
 
-  <!-- SEO -->
+  <!-- Primary SEO -->
   <meta name="description" content="View product details and checkout securely with LWG Partners Network."/>
   <link rel="canonical" href="https://www.lwgpartnersnetwork.com/product.html"/>
-  <meta property="og:type" content="product"/>
-  <meta property="og:title" content="Product • LWG Store"/>
-  <meta property="og:site_name" content="LWG Partners Network"/>
 
-  <!-- simple inline favicon (no file needed) -->
-  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="product"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+  <meta property="og:title" content="Product • LWG Store"/>
+  <meta property="og:description" content="Quality products with reliable delivery across Sierra Leone."/>
+  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/product.html"/>
+  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Product • LWG Store"/>
+  <meta name="twitter:description" content="Quality products with reliable delivery across Sierra Leone."/>
+  <meta name="twitter:image" content="/frontend/images/og-image-1200x630.png"/>
+
+  <!-- Icons (use the same images you added for index.html) -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/frontend/images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/frontend/images/favicon-64.png">
+  <link rel="apple-touch-icon" href="/frontend/images/logo-512.png">
 
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
@@ -33,8 +44,6 @@
       width:100%;height:360px;object-fit:cover;background:#111827;
       border:1px solid var(--line);border-radius:14px;
     }
-    /* ensure no “write-up” overlay/caption */
-    .thumb[title]{ title: none; } /* browsers ignore, but we don't set title anyway */
 
     .price{color:var(--price);font-weight:800;font-size:22px;margin:8px 0}
     .qty{display:flex;gap:8px;align-items:center;margin:12px 0}
@@ -43,6 +52,13 @@
   </style>
 </head>
 <body>
+  <!-- API base: production uses Render; localhost uses your dev server -->
+  <script>
+    window.__LWG_API__ = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://localhost:5001'
+      : 'https://lwg-api.onrender.com';
+  </script>
+
   <nav class="nav">
     <a href="index.html" class="muted" aria-label="Back to store">← Back</a>
     <a href="cart.html" class="btn ghost" aria-label="Open cart">Cart (<span id="cartCount">0</span>)</a>
@@ -54,7 +70,7 @@
 
     <section id="wrap" class="grid" style="display:none">
       <div>
-        <!-- important: no title attr, and hard onerror placeholder so no overlay/write-up appears -->
+        <!-- No title attr, so no browser tooltip/write-up overlay -->
         <img id="img" class="thumb" src="" alt="">
       </div>
       <div>
@@ -72,73 +88,74 @@
     </section>
   </main>
 
-<!-- put this near the top of <body> or inside <head> -->
-<script>
-  window.__LWG_API__ = 'https://lwg-api.onrender.com';
-</script>
+  <script>
+  (function(){
+    const API_BASE = window.__LWG_API__;
+    const LS_CART  = 'lwg_cart';
 
-  
-<script>
-(function(){
-  const PROD_API = 'https://lwg-api.onrender.com';
-  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? 'http://localhost:5001'
-    : PROD_API;
-  const LS_CART='lwg_cart';
-
-  function $(s){ return document.querySelector(s); }
-  function money(n){ return 'NLe ' + (Number(n||0)).toLocaleString(); }
-  function cart(){ try{return JSON.parse(localStorage.getItem(LS_CART)||'[]');}catch{return [];} }
-  function saveCart(c){ localStorage.setItem(LS_CART, JSON.stringify(c)); }
-  function updateCount(){ $('#cartCount').textContent = cart().reduce((s,i)=>s+(i.qty||0),0); }
-  function getParam(n){ return new URLSearchParams(location.search).get(n); }
-
-  /** Fetch single product */
-  async function fetchProduct(idOrSlug){
-    const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`, {headers:{'Accept':'application/json'}});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    if(!data.ok) throw new Error(data.error||'Invalid response');
-    return data.product;
-  }
-
-  async function boot(){
-    updateCount();
-    const id=getParam('id');
-    if(!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
-    try{
-      const p=await fetchProduct(id);
-      $('#title').textContent=p.title||'Product';
-      $('#price').textContent=money(p.price);
-      $('#desc').textContent=p.desc||'';
-      $('#img').src=p.image || (p.images && p.images[0]) || 'https://via.placeholder.com/800x600?text=No+Image';
-      $('#img').alt=p.title||'Product';
-
-      $('#loading').style.display='none';
-      $('#wrap').style.display='grid';
-
-      $('#add').addEventListener('click',()=>{
-        const qty=Math.max(1,Number($('#q').value||1));
-        const c=cart();
-        const idKey=p._id||p.id||p.slug;
-        const it=c.find(i=>i.id===idKey);
-        if(it) it.qty+=qty; else c.push({id:idKey,qty});
-        saveCart(c);
-        updateCount();
-        $('#add').textContent='Added!';
-        setTimeout(()=>$('#add').textContent='Add to cart',900);
-      });
-    }catch(e){
-      console.error(e);
-      $('#loading').style.display='none';
-      $('#error').style.display='block';
+    function $(s){ return document.querySelector(s); }
+    function money(n){
+      const v = Number(n||0);
+      try { return 'NLe ' + v.toLocaleString(); } catch { return 'NLe ' + v; }
     }
-  }
+    function cart(){
+      try { return JSON.parse(localStorage.getItem(LS_CART)||'[]'); }
+      catch { return []; }
+    }
+    function saveCart(c){ localStorage.setItem(LS_CART, JSON.stringify(c)); }
+    function updateCount(){ $('#cartCount').textContent = cart().reduce((s,i)=>s+(i.qty||0),0); }
+    function getParam(name){ return new URLSearchParams(location.search).get(name); }
 
-  boot();
-})();
-</script>
+    async function fetchProduct(idOrSlug){
+      const res = await fetch(`${API_BASE}/api/products/${encodeURIComponent(idOrSlug)}`, {
+        headers:{'Accept':'application/json'}, cache:'no-store'
+      });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data = await res.json();
+      if(!data.ok) throw new Error(data.error||'Invalid response');
+      return data.product;
+    }
+
+    async function boot(){
+      updateCount();
+      const id = getParam('id');
+      if(!id){ $('#loading').style.display='none'; $('#error').style.display='block'; return; }
+
+      try{
+        const p = await fetchProduct(id);
+
+        $('#title').textContent = p.title || 'Product';
+        $('#price').textContent = money(p.price);
+        $('#desc').textContent  = p.desc || '';
+
+        const imgUrl = p.image || (Array.isArray(p.images) && p.images[0]) || '';
+        const imgEl  = $('#img');
+        imgEl.src = imgUrl || 'https://via.placeholder.com/800x600?text=No+Image';
+        imgEl.alt = p.title || 'Product';
+
+        $('#loading').style.display = 'none';
+        $('#wrap').style.display = 'grid';
+
+        $('#add').addEventListener('click', ()=>{
+          const qty = Math.max(1, Number($('#q').value||1));
+          const c = cart();
+          const idKey = p._id || p.id || p.slug;
+          const it = c.find(i => i.id === idKey);
+          if(it) it.qty += qty; else c.push({ id: idKey, qty });
+          saveCart(c);
+          updateCount();
+          $('#add').textContent = 'Added!';
+          setTimeout(()=> $('#add').textContent='Add to cart', 900);
+        });
+      }catch(e){
+        console.error(e);
+        $('#loading').style.display='none';
+        $('#error').style.display='block';
+      }
+    }
+
+    boot();
+  })();
+  </script>
 </body>
 </html>
-
-

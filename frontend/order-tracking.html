@@ -3,16 +3,36 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Track Order • LWG</title>
-  <link rel="stylesheet" href="css/styles.css"/>
+  <title>Track Order • LWG Store</title>
+
+  <!-- SEO -->
+  <meta name="description" content="Track your LWG Partners Network order using your reference and phone or email."/>
+  <link rel="canonical" href="https://www.lwgpartnersnetwork.com/order-tracking.html"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+  <meta property="og:title" content="Track Order • LWG Store"/>
+  <meta property="og:description" content="Enter your reference and contact to see status, items, and download your receipt."/>
+  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/order-tracking.html"/>
+  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+
+  <!-- Caching -->
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/frontend/images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/frontend/images/favicon-64.png">
+  <link rel="apple-touch-icon" href="/frontend/images/logo-512.png">
+
+  <link rel="stylesheet" href="css/styles.css"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <style>
-    :root{--line:#1f2937;--bg:#0b1220;--muted:#94a3b8;--text:#e5e7eb;--brand:#1d4ed8;--brand2:#1e40af;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+    :root{--line:#1f2937;--bg:#0b1220;--muted:#94a3b8;--text:#e5e7eb;--brand:#1d4ed8;--brand2:#1e40af;--ok:#22c55e}
     *{box-sizing:border-box}
-    body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif;margin:0}
     .card{max-width:760px;margin:24px auto;background:#0b1220;border:1px solid var(--line);border-radius:16px;padding:18px}
     h2,h3{line-height:1.2;margin:0 0 8px}
     .row{display:flex;justify-content:space-between;gap:12px;margin:6px 0;flex-wrap:wrap}
@@ -38,24 +58,21 @@
   </style>
 </head>
 <body>
+
   <div class="card" role="region" aria-labelledby="hdr">
     <h2 id="hdr" style="margin-top:4px">Track your order</h2>
     <p class="muted">Enter your <b>reference</b> and the <b>phone</b> or <b>email</b> you used at checkout.</p>
 
     <form id="trackForm" class="grid" novalidate>
       <div>
-        <label for="ref" class="small muted label">
-          <span>Reference</span>
-        </label>
+        <label for="ref" class="small muted label"><span>Reference</span></label>
         <input id="ref" class="input" placeholder="e.g. LWG-ABC123" autocomplete="off" required
                inputmode="latin" spellcheck="false" aria-describedby="refHelp"/>
         <div id="refHelp" class="small muted" style="margin-top:4px">Usually looks like <b>LWG-XXXXX</b>.</div>
       </div>
 
       <div>
-        <label for="contact" class="small muted label">
-          <span>Phone (E.164) or Email</span>
-        </label>
+        <label for="contact" class="small muted label"><span>Phone (E.164) or Email</span></label>
         <input id="contact" class="input" placeholder="+232… or name@example.com" autocomplete="off" required
                inputmode="email" spellcheck="false" aria-describedby="ctHelp"/>
         <div id="ctHelp" class="small muted">Phone must start with “+” (example: <b>+2327…</b>)</div>
@@ -72,8 +89,13 @@
 
 <script>
 (function(){
-  // === CONFIG ===
-  const API = 'https://lwg-api.onrender.com'; // production
+  // =========================
+  // API base (prod vs local)
+  // =========================
+  const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://localhost:5001'
+    : 'https://lwg-api.onrender.com';
+
   const API_TIMEOUT_MS = 15000;
 
   // === Helpers ===
@@ -83,7 +105,7 @@
   const isEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim());
   const normalizePhone = v => {
     if (!v) return '';
-    const digits = String(v).replace(/[^\d+]/g,'').replace(/^\+?/,'');
+    const digits = String(v).replace(/[^\d+]/g,'').replace(/^\+?/, '');
     return digits ? ('+' + digits) : '';
   };
   const get = (obj, path, fb) => {
@@ -122,7 +144,7 @@
     `;
   }
 
-  // Unified fetch with timeout + better error text
+  // fetch with timeout
   async function apiFetch(url, opts={}){
     const ctl = new AbortController();
     const t = setTimeout(()=>ctl.abort(new DOMException('Timeout','AbortError')), API_TIMEOUT_MS);
@@ -138,20 +160,15 @@
     }
   }
 
-  // Optional: quick health check to provide clearer error when backend cold-starts
+  // best-effort warmup (your backend may not have /api/health; 404 is ok)
   async function ensureApiWarm(){
     try {
-      // try a cheap, cache-busting HEAD (falls back to GET if HEAD not supported)
       const url = `${API}/api/health?_=${Date.now()}`;
-      let r = await apiFetch(url, { method:'HEAD' });
-      if (!r.resp.ok && r.resp.status !== 404) {
-        // Some backends won't have /api/health; tolerate 404 as "up"
-        await sleep(200); // tiny delay for cold start
-      }
+      const r = await apiFetch(url, { method: 'HEAD' });
+      if (!r.resp.ok && r.resp.status !== 404) await sleep(200);
     } catch {}
   }
 
-  // === Main ===
   async function track(e){
     if (e) e.preventDefault();
 
@@ -186,10 +203,8 @@
     resultEl.innerHTML = skeletonCard();
     resultEl.style.display = 'block';
 
-    // health check (best-effort)
     await ensureApiWarm();
 
-    // fetch
     let r;
     try{
       r = await apiFetch(`${API}/api/orders/track?${qs}`);
@@ -204,7 +219,6 @@
 
     const { resp, json, text } = r;
 
-    // common rate-limit / service errors
     if (resp && resp.status === 429){
       resultEl.style.display = 'none';
       Swal.fire({icon:'warning', title:'Too many requests', text:'Please wait a minute and try again.'});
@@ -216,7 +230,6 @@
       return;
     }
 
-    // parse error message
     const serverMsg = (json && (json.error || json.message)) || (text && text.slice(0,160)) || ('HTTP ' + (resp ? resp.status : '?'));
 
     if (!resp || !resp.ok || !json || json.ok !== true){
@@ -226,7 +239,6 @@
       return;
     }
 
-    // success
     const o = json.order || {};
     const itemsArr = Array.isArray(o.items) ? o.items : [];
     const itemsHTML = itemsArr.map(x => {
@@ -265,11 +277,11 @@
     dl.style.display = 'inline-flex';
   }
 
-  // submit + Enter key
+  // submit + Enter
   $('#trackForm').addEventListener('submit', track);
   $('#go').addEventListener('click', track);
 
-  // prefill from hash: order-tracking.html#LWG-XXX|+2327..orEmail
+  // Deep-link support: order-tracking.html#LWG-XXX|+2327..orEmail
   (function bootFromHash(){
     if (location.hash.includes('|')) {
       const [r, who] = decodeURIComponent(location.hash.slice(1)).split('|');

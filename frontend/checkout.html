@@ -3,11 +3,24 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Checkout • LWG</title>
-  <link rel="stylesheet" href="css/styles.css"/>
+  <title>Checkout • LWG Store</title>
 
-  <!-- SweetAlert2 -->
+  <!-- SEO -->
+  <meta name="description" content="Secure checkout — pay with Orange Money, Africell Money, bank transfer, or cash on delivery."/>
+  <link rel="canonical" href="https://www.lwgpartnersnetwork.com/checkout.html"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+  <meta property="og:title" content="Checkout • LWG Store"/>
+  <meta property="og:description" content="Fast, simple checkout with reliable delivery across Sierra Leone."/>
+  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/checkout.html"/>
+  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+
+  <!-- Favicon (inline, no file needed) -->
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+
+  <link rel="stylesheet" href="css/styles.css"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
   <style>
     .swal2-popup{ font-family: system-ui, Segoe UI, Roboto, Inter, Arial; }
     .pay-card{
@@ -22,6 +35,8 @@
     .copy-btn:hover{ filter:brightness(1.1) }
     .pay-title{ font-weight:700; margin-bottom:6px }
     .pay-note{ color:#94a3b8; font-size:14px; margin-top:6px }
+    .hr{height:1px;background:#1f2937;margin:10px 0}
+    .space{height:10px}
   </style>
 </head>
 <body>
@@ -41,7 +56,6 @@
         <label class="label">Delivery Address</label>
         <textarea class="input" name="address" rows="3" required></textarea>
 
-        <!-- Delivery location (drives fee) -->
         <label class="label">Delivery Location</label>
         <select class="input" name="deliveryZone" id="deliveryZone" required>
           <option value="" disabled selected>Select delivery area</option>
@@ -82,9 +96,11 @@
 <script>
 (function(){
   /* ==========================
-     API CONFIG  (keep consistent across pages)
+     API base (prod vs local)
      ========================== */
-  const API_BASE = 'https://lwg-api.onrender.com';
+  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+    ? 'http://localhost:5001'
+    : 'https://lwg-api.onrender.com';
   const CREATE_ORDER_URL = API_BASE + '/api/orders';
   const MAX_PROOF_MB = 5;
 
@@ -100,7 +116,7 @@
   };
 
   /* ==========================
-     Payment methods (shown to user)
+     Payment methods (UI text only)
      ========================== */
   const METHODS = {
     'Cash on Delivery': {
@@ -130,13 +146,13 @@
       label: 'Bank Transfer (Rokel Commercial Bank)',
       bank: 'Rokel Commercial Bank',
       accountName: 'LWG Partners Network',
-      accountNumber: 'REPLACE_WITH_ACCOUNT_NUMBER', /* put real number */
+      accountNumber: 'REPLACE_WITH_ACCOUNT_NUMBER',
       branch: 'Freetown Branch'
     }
   };
 
   /* ==========================
-     Local Store
+     Local Store (from previous pages)
      ========================== */
   const LS_PRODUCTS = 'lwg_products';
   const LS_CART     = 'lwg_cart';
@@ -233,9 +249,8 @@
         '<div class="row"><div><b>Wallet:</b> '+ m.wallet +'</div>' +
         '<button class="copy-btn" data-copy="'+ m.wallet +'">Copy</button></div>' +
         (m.instruction ? '<div class="pay-note">'+ m.instruction +'</div>' : '') +
-        '<div class="space"></div><button id="showPayPopup" class="btn ghost">Show details</button>';
+        '<div class="space"></div><button id="showPayPopup" class="btn ghost" type="button">Show details</button>';
     } else {
-      // Banks
       payInfo.innerHTML =
         '<div class="pay-title">'+ m.label +'</div>' +
         '<div class="row"><div><b>Bank:</b> '+ m.bank +'</div>' +
@@ -246,7 +261,7 @@
         '<button class="copy-btn" data-copy="'+ m.accountNumber +'">Copy</button></div>' +
         (m.branch ? '<div class="row"><div><b>Branch:</b> '+ m.branch +'</div>' +
         '<button class="copy-btn" data-copy="'+ m.branch +'">Copy</button></div>' : '') +
-        '<div class="space"></div><button id="showPayPopup" class="btn ghost">Show details</button>';
+        '<div class="space"></div><button id="showPayPopup" class="btn ghost" type="button">Show details</button>';
     }
     payInfo.style.display = 'block';
 
@@ -274,7 +289,7 @@
   });
 
   /* ==========================
-     Utilities
+     File utils
      ========================== */
   function fileToBase64(file){
     return new Promise(function(resolve,reject){
@@ -299,7 +314,7 @@
   let busy = false;
   $('#form').addEventListener('submit', async function(e){
     e.preventDefault();
-    if (busy) return; // prevent double submit
+    if (busy) return;
     busy = true;
 
     try{
@@ -335,12 +350,12 @@
       const deliveryFee = currentDeliveryFee();
       const grandTotal  = subtotal + deliveryFee;
 
-      // Payment snapshot (strings only)
+      // Clean string-only snapshot of chosen payment method for email/receipt
       const m = METHODS[data.payment];
       let snap = null;
       if (m){ snap = {}; for (const k in m){ if (Object.prototype.hasOwnProperty.call(m,k) && typeof m[k] === 'string') snap[k] = m[k]; } }
 
-      // Prepare order payload matching backend schema
+      // Payload matches your backend zod schema
       const orderPayload = {
         items: items.map((i)=>({
           id: i.id,
@@ -381,7 +396,7 @@
             '<div style="margin-bottom:8px"><b>Delivery area:</b> '+ orderPayload.info.deliveryZone +'</div>' +
             '<div style="margin-bottom:8px"><b>Payment:</b> '+ orderPayload.info.payment +'</div>' +
             '<div style="margin-bottom:8px"><b>Items:</b><br>'+ lines +'</div>' +
-            '<div class="hr" style="height:1px;background:#1f2937;margin:10px 0"></div>' +
+            '<div class="hr"></div>' +
             '<div class="row" style="justify-content:space-between"><div>Subtotal</div><div>'+ money(subtotal) +'</div></div>' +
             '<div class="row" style="justify-content:space-between"><div>Delivery</div><div>'+ money(deliveryFee) +'</div></div>' +
             '<div class="row" style="justify-content:space-between;font-weight:700"><div>Total</div><div>'+ money(grandTotal) +'</div></div>' +
@@ -421,14 +436,13 @@
         try { json = await resp.json(); } catch { /* ignore */ }
 
         if (!resp.ok || !json || json.ok !== true){
-          // friendlier messages
           if (resp.status === 503) throw new Error('Service temporarily unavailable. Please try again later.');
           if (resp.status === 429) throw new Error('Too many orders submitted. Please wait a minute and try again.');
           const msg = (json && json.error) ? json.error : ('HTTP ' + resp.status);
           throw new Error(msg);
         }
 
-        // Success -> clear cart and go to Receipt page
+        // Success -> clear cart and go to receipt page
         Store.clearCart();
         await Swal.fire({
           icon:'success',
@@ -440,7 +454,6 @@
         const who = (orderPayload.info.email && orderPayload.info.email.indexOf('@')>-1)
                     ? orderPayload.info.email
                     : orderPayload.info.phone;
-        // The receipt page expects hash: #<ref>|<phoneOrEmail>
         location.href = 'receipt.html#' + encodeURIComponent(json.ref) + '|' + encodeURIComponent(who);
 
       } finally {

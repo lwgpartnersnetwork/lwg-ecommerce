@@ -3,22 +3,35 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Cart • LWG</title>
+  <title>Cart • LWG Store</title>
+
+  <!-- SEO -->
+  <meta name="description" content="Review your cart and proceed to checkout on LWG Store."/>
+  <link rel="canonical" href="https://www.lwgpartnersnetwork.com/cart.html"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="Cart • LWG Store"/>
+  <meta property="og:site_name" content="LWG Partners Network"/>
+  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+
+  <!-- Inline favicon -->
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
-    /* a few safe defaults in case styles.css is light */
-    body{background:#0b1220;color:#e5e7eb}
+    body{background:#0b1220;color:#e5e7eb;margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
     .header{border-bottom:1px solid #1f2937}
     .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .container{max-width:1100px;margin:24px auto;padding:0 16px}
     .table{width:100%;border-collapse:collapse;border-spacing:0}
     .table th,.table td{border-bottom:1px solid #1f2937;padding:10px;text-align:left;vertical-align:middle}
-    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid #1f2937;background:#111827;color:#e5e7eb;cursor:pointer;text-decoration:none}
     .btn.ghost{background:#0f172a;border:1px solid #374151}
     .btn.good{background:#16a34a;border-color:#15803d}
     .btn.danger{background:#b91c1c;border-color:#991b1b}
+    .btn[aria-disabled="true"]{opacity:.6;cursor:not-allowed}
     .input{padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
     .muted{color:#94a3b8}
+    .thumb{width:56px;height:56px;object-fit:cover;border-radius:8px;background:#111827;border:1px solid #1f2937}
     .toast{position:fixed;right:16px;bottom:16px;background:#111827;border:1px solid #374151;color:#e5e7eb;padding:10px 12px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.22s}
     .toast.show{opacity:1;transform:translateY(0)}
   </style>
@@ -46,7 +59,7 @@
       </div>
       <div class="row" style="gap:10px">
         <a class="btn ghost" href="index.html">Continue Shopping</a>
-        <a class="btn good" id="toCheckout" href="checkout.html">Checkout</a>
+        <a class="btn good" id="toCheckout" href="checkout.html" aria-disabled="true">Checkout</a>
       </div>
     </div>
   </div>
@@ -56,7 +69,7 @@
 <script>
 (function(){
   // ==========================
-  // Shared storage keys (match Admin/Store pages)
+  // Shared storage keys
   // ==========================
   var LS_PRODUCTS = 'lwg_products';
   var LS_CART     = 'lwg_cart';
@@ -101,7 +114,7 @@
   // ==========================
   function $(s){ return document.querySelector(s); }
   function toast(msg){
-    var el = $('#toast'); if (!el) return alert(msg);
+    var el = $('#toast'); if (!el) { alert(msg); return; }
     el.textContent = String(msg || '');
     el.classList.add('show');
     setTimeout(function(){ el.classList.remove('show'); }, 1500);
@@ -119,7 +132,7 @@
   // ==========================
   // Quantity clamping
   // ==========================
-  var RESPECT_STOCK = false; // set to true if you want to cap by product.stock
+  var RESPECT_STOCK = false; // set true to cap by product.stock if provided
   var MAX_QTY = 999;
 
   function clampQty(qty, product){
@@ -140,7 +153,7 @@
   var btnClear = $('#clearCart');
 
   function render(){
-    // strip any items whose product no longer exists
+    // strip items whose product no longer exists
     var cart = Store.cart().filter(function(it){ return !!Store.getProduct(it.id); });
     if (cart.length !== Store.cart().length) Store.saveCart(cart);
 
@@ -152,7 +165,6 @@
         '<tbody><tr><td colspan="6" class="muted">Your cart is empty.</td></tr></tbody>' +
         '<tfoot><tr><th colspan="4" style="text-align:right">Total</th><th>'+money(0)+'</th><th></th></tr></tfoot>';
       btnCheckout.setAttribute('aria-disabled','true');
-      btnCheckout.classList.add('muted');
       btnCheckout.style.pointerEvents = 'none';
       updateCartCount();
       return;
@@ -173,7 +185,7 @@
       rowsHTML +=
         '<tr data-id="'+ item.id +'">' +
           '<td style="width:60px"><a href="product.html?id='+encodeURIComponent(item.id)+'">' +
-            '<img class="thumb" src="'+ (p.image||'') +'" alt="'+ (p.title||'') +'" style="width:56px;height:56px;object-fit:cover;border-radius:8px">' +
+            '<img class="thumb" src="'+ (p.image||'') +'" alt="'+ (p.title||'') +'">' +
           '</a></td>' +
           '<td><a href="product.html?id='+encodeURIComponent(item.id)+'" style="color:inherit;text-decoration:none">'+ (p.title||'') +'</a></td>' +
           '<td>'+ money(p.price) +'</td>' +
@@ -198,7 +210,7 @@
         '<tr><th colspan="4" style="text-align:right">Total</th><th id="grandTotal">'+ money(total) +'</th><th></th></tr>' +
       '</tfoot>';
 
-    // image fallbacks (no inline onerror to keep CSP clean)
+    // image fallback
     var imgs = table.querySelectorAll('img.thumb');
     imgs.forEach(function(im){
       im.addEventListener('error', function(){ im.src = 'https://via.placeholder.com/56?text=No+Img'; });
@@ -206,7 +218,6 @@
 
     wireUpRowActions();
     btnCheckout.removeAttribute('aria-disabled');
-    btnCheckout.classList.remove('muted');
     btnCheckout.style.pointerEvents = '';
     updateCartCount();
   }
@@ -254,8 +265,7 @@
     });
   }
 
-  // clear cart
-  btnClear.addEventListener('click', function(){
+  $('#clearCart').addEventListener('click', function(){
     if (!Store.cart().length) return;
     if (!confirm('Clear all items from your cart?')) return;
     Store.clear();
@@ -263,7 +273,6 @@
     render();
   });
 
-  // initial paint
   render();
 })();
 </script>

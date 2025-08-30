@@ -35,8 +35,8 @@
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>Order Receipt</h2>
+  <div class="card" role="region" aria-labelledby="rcpt-h1">
+    <h2 id="rcpt-h1">Order Receipt</h2>
     <p class="muted">Enter your <b>reference</b> and either your <b>phone</b> or <b>email</b> to view & download your receipt.</p>
 
     <form id="rcpt-form" class="row" novalidate>
@@ -51,7 +51,7 @@
       <div style="display:flex;gap:8px;align-items:center">
         <button id="findBtn" type="submit" class="btn" aria-live="polite">
           <span id="findTxt">Find</span>
-          <span id="findSpin" class="spin" style="display:none"></span>
+          <span id="findSpin" class="spin" style="display:none" aria-hidden="true"></span>
         </button>
         <a id="dl" class="btn good" href="#" download style="display:none">Download PDF</a>
         <button id="close" type="button" class="btn ghost" style="display:none">Close now</button>

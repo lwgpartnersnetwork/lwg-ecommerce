@@ -7,7 +7,7 @@ const KEY_PRODUCTS = 'lwg_products_v1';
 const KEY_CART     = 'lwg_cart_v1';
 const KEY_ORDERS   = 'lwg_orders_v1';
 
-// Production API base
+// Production API base (Render backend)
 const API = 'https://lwg-api.onrender.com';
 
 // =======================
@@ -31,7 +31,8 @@ async function apiFetch(path, {
   timeout = 15000,
   signal
 } = {}) {
-  const url = new URL(path.startsWith('http') ? path : (API.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '')));
+  const base = API.replace(/\/+$/, '');
+  const url = new URL(path.startsWith('http') ? path : (base + '/' + path.replace(/^\/+/, '')));
   if (query && typeof query === 'object') {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
@@ -39,13 +40,17 @@ async function apiFetch(path, {
   }
 
   const { signal: sig, cancel } = withTimeout(timeout, signal);
-  let resp, text = '', json = null;
 
+  const hdrs = { ...(headers || {}) };
+  const isJsonBody = body && typeof body === 'object' && !(body instanceof FormData);
+  if (isJsonBody && !hdrs['Content-Type']) hdrs['Content-Type'] = 'application/json';
+
+  let resp, text = '', json = null;
   try {
     resp = await fetch(url.toString(), {
       method,
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: body && typeof body === 'object' && !(body instanceof FormData) ? JSON.stringify(body) : body,
+      headers: hdrs,
+      body: isJsonBody ? JSON.stringify(body) : body,
       cache: 'no-store',
       signal: sig
     });
@@ -78,18 +83,15 @@ async function getJSON(path, options = {}) {
   return r.json;
 }
 
-// Cache health check so we don’t ping on every call
+// Cache API health so we don’t ping on every call
 let _apiHealth = { checkedAt: 0, ok: false, status: 0 };
 async function apiReady({ maxAgeMs = 60_000 } = {}) {
   const now = Date.now();
   if (now - _apiHealth.checkedAt < maxAgeMs) return _apiHealth.ok;
-
   try {
-    // HEAD preferred; 404 is acceptable (service reachable)
-    const t0 = performance.now?.() ?? now;
     const r = await apiFetch('/api/health', { method: 'HEAD', timeout: 7000 });
-    const ok = r.ok || r.status === 404;
-    _apiHealth = { checkedAt: now, ok, status: r.status || 0, latencyMs: Math.round((performance.now?.() ?? now) - t0) };
+    const ok = r.ok || r.status === 404; // treat 404 as "reachable"
+    _apiHealth = { checkedAt: now, ok, status: r.status || 0 };
     return ok;
   } catch {
     _apiHealth = { checkedAt: now, ok: false, status: 0 };
@@ -111,7 +113,7 @@ function lsGet(key, fb = '[]') {
 }
 function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
 
-// Seed some demo products if empty (local fallback)
+// Seed demo products if empty (for offline / first-run)
 function seedIfNeeded() {
   if (!localStorage.getItem(KEY_PRODUCTS)) {
     const demo = [
@@ -129,21 +131,36 @@ function seedIfNeeded() {
 // Public Store API
 // =======================
 const Store = {
-  // Initialize storage and optionally warm API status
+  // Initialize storage and warm API status
   async init() {
     seedIfNeeded();
-    // fire-and-forget API readiness check; no throw on failure
     try { await apiReady({ maxAgeMs: 0 }); } catch {}
   },
 
   // -------- PRODUCTS --------
-  async products() {
+  /**
+   * Fetch products. If API works, fill local cache (for offline/cart).
+   * Returns an array of products.
+   */
+  async products({ q = '', page = 1, pageSize = 100 } = {}) {
     if (await apiReady()) {
       try {
-        // Expected response: { ok: true, products: [...] } or plain array
-        const res = await getJSON('/api/products', { timeout: 10000 });
-        const list = Array.isArray(res) ? res : (res.products || []);
-        if (list.length) return list;
+        const data = await getJSON('/api/products', { query: { q, page, pageSize }, timeout: 12000 });
+        const list = data.products || [];
+        if (Array.isArray(list)) {
+          // Keep a minimal local cache to support cart & offline
+          // Normalize ids to use _id || id || slug
+          const cached = list.map(p => ({
+            id: p._id || p.id || p.slug || crypto.randomUUID(),
+            title: p.title || 'Product',
+            price: Number(p.price || 0),
+            stock: Number.isFinite(+p.stock) ? +p.stock : 0,
+            image: p.image || (Array.isArray(p.images) ? p.images[0] : '') || '',
+            desc:  p.desc || ''
+          }));
+          lsSet(KEY_PRODUCTS, cached);
+          return list;
+        }
       } catch {
         // fall through to local
       }
@@ -151,27 +168,40 @@ const Store = {
     return lsGet(KEY_PRODUCTS, '[]');
   },
 
-  async getProduct(id) {
-    if (!id) return null;
+  /**
+   * Get a single product (id or slug). Falls back to local cache.
+   */
+  async getProduct(idOrSlug) {
+    if (!idOrSlug) return null;
     if (await apiReady()) {
       try {
-        const res = await getJSON(`/api/products/${encodeURIComponent(id)}`, { timeout: 10000 });
-        return res.product || res; // support either shape
+        const data = await getJSON(`/api/products/${encodeURIComponent(idOrSlug)}`, { timeout: 12000 });
+        return data.product || null;
       } catch {
-        // ignore and fall back to local
+        // ignore and fall back
       }
     }
-    return this.products().then(list => list.find(p => p.id === id) || null);
+    const list = lsGet(KEY_PRODUCTS, '[]');
+    return list.find(p => p.id === idOrSlug) || null;
   },
 
-  // Local admin helpers (keep as-is; API write endpoints may be private)
+  // Local admin helpers (for client-side admin UI only)
   saveProducts(list) { lsSet(KEY_PRODUCTS, list); },
   async upsertProduct(p) {
     const list = lsGet(KEY_PRODUCTS, '[]');
-    const i = list.findIndex(x => x.id === p.id);
-    if (i > -1) list[i] = p; else list.push({...p, id: p.id || crypto.randomUUID()});
+    const id = p.id || crypto.randomUUID();
+    const idx = list.findIndex(x => x.id === id);
+    const toSave = {
+      id,
+      title: String(p.title || 'Product'),
+      price: Number(p.price || 0),
+      stock: Number.isFinite(+p.stock) ? +p.stock : 0,
+      image: String(p.image || ''),
+      desc:  String(p.desc || '')
+    };
+    if (idx >= 0) list[idx] = toSave; else list.push(toSave);
     lsSet(KEY_PRODUCTS, list);
-    return p.id || list[list.length - 1].id;
+    return id;
   },
   async deleteProduct(id) {
     lsSet(KEY_PRODUCTS, lsGet(KEY_PRODUCTS, '[]').filter(p => p.id !== id));
@@ -190,13 +220,13 @@ const Store = {
     const c = this.cart();
     const it = c.find(i => i.id === productId);
     if (!it) return;
-    it.qty = qty;
+    it.qty = Math.max(0, Math.floor(Number(qty || 0)));
     if (it.qty <= 0) c.splice(c.indexOf(it), 1);
     this.saveCart(c);
   },
   clearCart() { this.saveCart([]); },
 
-  // -------- ORDERS --------
+  // -------- ORDERS (local fallback) --------
   orders() { return lsGet(KEY_ORDERS, '[]'); },
   saveOrders(list) { lsSet(KEY_ORDERS, list); },
   setOrderStatus(id, status) {
@@ -206,48 +236,76 @@ const Store = {
   },
 
   /**
-   * Place an order.
-   * If API is reachable, POSTs to /api/orders with { items:[{productId, qty}], info }.
-   * Falls back to local order if API fails/unavailable.
-   * Returns the order object (API response or local mock).
+   * Place an order (API-first). The backend expects:
+   * {
+   *   order: {
+   *     items: [{ id, qty, product: { title, price, image } }],
+   *     total: <number>,
+   *     info: { name, phone, email?, payment, address, deliveryZone?, deliveryFee?, subtotal?, grandTotal?, payment_details? }
+   *   },
+   *   proof?: { filename, mime, base64 }
+   * }
+   *
+   * @param {Object} info - checkout info (see above)
+   * @param {Object} [opts] - optional { proof }
+   * @returns {Promise<Object>} order response or local fallback order
    */
-  async placeOrder(info) {
-    // Build items from cart
-    const itemsLocal = this.cart().map(i => ({ id: i.id, qty: i.qty }));
-    const itemsForApi = itemsLocal.map(x => ({ productId: x.id, qty: x.qty }));
+  async placeOrder(info, opts = {}) {
+    // Build items from cart with product details (required by backend)
+    const localProducts = lsGet(KEY_PRODUCTS, '[]');
+    const cartItems = this.cart();
+    const itemsDetailed = cartItems.map(i => {
+      const p = localProducts.find(x => x.id === i.id) || {};
+      return {
+        id: i.id,
+        qty: Number(i.qty || 0),
+        product: {
+          title: p.title || 'Item',
+          price: Number(p.price || 0),
+          image: p.image || ''
+        }
+      };
+    }).filter(x => x.qty > 0);
 
-    // Try API first
+    const subtotal = itemsDetailed.reduce((s, it) => s + (Number(it.product.price) * it.qty), 0);
+
+    // Attempt API
     if (await apiReady()) {
       try {
+        const payload = {
+          order: {
+            items: itemsDetailed,
+            total: subtotal,
+            info: { ...info }
+          }
+        };
+        if (opts.proof) payload.proof = opts.proof;
+
         const res = await getJSON('/api/orders', {
           method: 'POST',
-          timeout: 15000,
-          body: { items: itemsForApi, info }
+          timeout: 20000,
+          body: payload
         });
-        // Success shapes expected: { ok:true, order:{...} } or { id, ...}
-        const order = res.order || res;
-        // Clear local cart on success
-        this.clearCart();
-        return order;
+
+        // Expected { ok:true, ref, id?, proofUrl? }
+        if (res && res.ok) {
+          this.clearCart();
+          return res; // pass through (contains ref/id)
+        }
       } catch (e) {
-        // fall back to local mock if API rejects
         console.warn('Order via API failed, using local fallback:', e?.message || e);
       }
     }
 
-    // Local fallback order
-    const fullItems = itemsLocal.map(i => ({
-      ...i,
-      product: (lsGet(KEY_PRODUCTS, '[]').find(p => p.id === i.id) || { title: 'Item', price: 0 })
-    }));
-    const total = fullItems.reduce((s, it) => s + (Number(it.product.price || 0) * Number(it.qty || 0)), 0);
+    // Local fallback order (offline mode)
     const order = {
       id: 'LWG-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
       at: new Date().toISOString(),
-      items: fullItems,
-      total,
+      items: itemsDetailed,
+      total: subtotal,
       info,
-      status: 'New'
+      status: 'New',
+      paymentStatus: 'Pending'
     };
     const list = this.orders(); list.push(order); this.saveOrders(list);
     this.clearCart();
@@ -255,8 +313,8 @@ const Store = {
   },
 
   /**
-   * Try to fetch an order from the API by ref + identity (email or phone E.164),
-   * else look it up in local orders by id.
+   * Track an order via API; fallback to local (by id) if not reachable.
+   * @param {Object} args - { ref, email?, phone? }
    */
   async trackOrder({ ref, email, phone }) {
     if (await apiReady()) {
@@ -265,14 +323,12 @@ const Store = {
         if (email) query.email = email;
         if (phone) query.phone = phone;
         const res = await getJSON('/api/orders/track', { query, timeout: 12000 });
-        // Expected shape { ok:true, order:{...} }
-        if (res && (res.ok === true) && res.order) return res.order;
+        if (res && res.ok && res.order) return res.order;
       } catch {
-        // fall through to local
+        // fall through
       }
     }
-    // local fallback by id
-    const o = this.orders().find(o => o.id === ref);
+    const o = this.orders().find(o => o.id === ref || o.ref === ref);
     if (!o) throw new Error('Order not found');
     return o;
   }

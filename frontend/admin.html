@@ -4,9 +4,14 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Admin • LWG</title>
+
+  <!-- SEO -->
+  <meta name="description" content="LWG Admin Dashboard — manage products and view local orders."/>
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
-    body{color:#e5e7eb;background:#0b1220}
+    body{color:#e5e7eb;background:#0b1220;margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
     .header .btn.ghost{border:1px solid #374151;background:#0f172a;color:#e5e7eb;padding:8px 12px;border-radius:10px;text-decoration:none}
     .header .btn.active{outline:2px solid #1d4ed8}
     .container{max-width:1100px;margin:24px auto;padding:0 16px}
@@ -14,7 +19,7 @@
     .card{border:1px solid #1f2937;border-radius:16px;overflow:hidden;background:#0b1220}
     .card img{width:100%;height:180px;object-fit:cover;background:#111827}
     .card .body{padding:12px}
-    .row{display:flex;gap:8px;align-items:center}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .hr{border-top:1px solid #1f2937;margin:18px 0}
     .label{display:block;margin-bottom:6px;color:#9ca3af}
     .input{width:100%;padding:10px;border-radius:10px;border:1px solid #374151;background:#0f172a;color:#e5e7eb}
@@ -306,11 +311,8 @@
         '</div>' +
       '</div>';
 
-    // safer image fallback (no inline onerror needed; works with strict CSP)
     const im = el.querySelector('.pimg');
-    im.addEventListener('error', () => {
-      im.src = 'https://via.placeholder.com/600x400?text=No+Image';
-    });
+    im.addEventListener('error', () => { im.src = 'https://via.placeholder.com/600x400?text=No+Image'; });
 
     el.querySelector('.del').onclick = function(){
       if (confirm('Delete product?')){ Store.deleteProduct(p.id); loadProducts(); toast('Deleted'); }
@@ -388,8 +390,8 @@
     };
     if (!p.title){ toast('Title is required'); return; }
 
-    Store.upsertProduct(p);   // write
-    loadProducts();           // refresh immediately
+    Store.upsertProduct(p);
+    loadProducts();
     e.target.reset();
     $('#cancelEdit').style.display = 'none';
     toast(isEdit ? 'Updated' : 'Saved');

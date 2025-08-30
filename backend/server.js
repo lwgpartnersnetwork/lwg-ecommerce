@@ -1,4 +1,6 @@
-// server.js
+// server.js — LWG API (Render/Netlify friendly, fixed duplicates)
+// Requires Node >= 18.20
+
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
@@ -11,10 +13,8 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';
 import PDFDocument from 'pdfkit';
-import productsRoutes from './routes/products.js';
 
-
-// ✅ Products route (import ONCE)
+// ✅ Products route (imported exactly once)
 import productsRoutes from './routes/products.js';
 
 /* =========================
@@ -88,12 +88,11 @@ const app = express();
 /* =========================
    Hardening + essentials
    ========================= */
+app.set('trust proxy', 1); // important on Render/Netlify behind proxies
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(pinoHttp());
-app.use('/api/products', productsRoutes);
-
 
 /* =========================
    CORS (with preflight)

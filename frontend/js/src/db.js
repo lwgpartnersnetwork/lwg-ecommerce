@@ -1,24 +1,22 @@
-// db.js
+// db.js — Mongo connection utilities
 import mongoose from 'mongoose';
 
 let hasListeners = false;
 let connecting = null;
 
-/**
- * Pretty names for connection states
- */
+/** Human-readable state names */
 function stateName(s) {
-  return ({
-    0: 'disconnected',
-    1: 'connected',
-    2: 'connecting',
-    3: 'disconnecting'
-  })[s] ?? String(s);
+  return (
+    {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting',
+    }[s] ?? String(s)
+  );
 }
 
-/**
- * Attach one-time listeners for observability.
- */
+/** Attach connection event listeners once */
 function attachConnectionListeners() {
   if (hasListeners) return;
   hasListeners = true;
@@ -26,7 +24,8 @@ function attachConnectionListeners() {
   const { connection } = mongoose;
 
   connection.on('connected', () => {
-    console.log(`✔ MongoDB ${connection.name || ''} connected (${connection.host}:${connection.port})`);
+    const { host, port, name } = connection;
+    console.log(`✔ MongoDB ${name || ''} connected (${host}:${port})`);
   });
 
   connection.on('error', (err) => {
@@ -40,52 +39,54 @@ function attachConnectionListeners() {
 
 /**
  * Connect to MongoDB with retries and sane defaults.
- * - Respects process.env.MONGO_URI if `uri` not provided
- * - Retries a few times on startup (useful on Render/Docker cold starts)
+ * - Uses process.env.MONGO_URI if `uri` isn’t provided
+ * - Retries on startup (handy for Render/Docker cold starts)
  */
-export async function connectDB(uri = process.env.MONGO_URI, {
-  maxRetries = 5,
-  baseDelayMs = 1000,
-  serverSelectionTimeoutMS = 10000,
-  connectTimeoutMS = 10000
-} = {}) {
+export async function connectDB(
+  uri = process.env.MONGO_URI,
+  {
+    maxRetries = 5,
+    baseDelayMs = 1000,
+    serverSelectionTimeoutMS = 10_000,
+    connectTimeoutMS = 10_000,
+  } = {}
+) {
   if (!uri) throw new Error('MONGO_URI is required');
 
-  // global mongoose settings (safe, low-noise)
+  // global settings
   mongoose.set('strictQuery', true);
-
   attachConnectionListeners();
 
   // avoid parallel connects
   if (connecting) return connecting;
 
+  // already connected?
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+
   connecting = (async () => {
     let attempt = 0;
-    // If already connected, just return
-    if (mongoose.connection.readyState === 1) return mongoose.connection;
-
     while (true) {
       try {
         await mongoose.connect(uri, {
           serverSelectionTimeoutMS,
-          connectTimeoutMS
-          // Mongoose v8+ uses sensible defaults; no need for useNewUrlParser/useUnifiedTopology
+          connectTimeoutMS,
+          // Mongoose v8+ sensible defaults; no need for deprecated flags
         });
         return mongoose.connection;
       } catch (err) {
         attempt += 1;
-        const done = attempt > maxRetries;
         const msg = err?.message || String(err);
         console.error(`✖ MongoDB connect attempt ${attempt}/${maxRetries} failed: ${msg}`);
 
-        if (done) {
-          console.error('✖ Exhausted MongoDB connection retries. Exiting.');
+        if (attempt >= maxRetries) {
+          console.error('✖ Exhausted MongoDB connection retries.');
           throw err;
         }
 
-        // Exponential backoff with a little jitter
-        const delay = Math.round(baseDelayMs * Math.pow(2, attempt - 1) * (0.85 + Math.random() * 0.3));
-        await new Promise(r => setTimeout(r, delay));
+        // Exponential backoff with jitter
+        const delay =
+          Math.round(baseDelayMs * Math.pow(2, attempt - 1) * (0.85 + Math.random() * 0.3));
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
   })();
@@ -93,28 +94,24 @@ export async function connectDB(uri = process.env.MONGO_URI, {
   try {
     return await connecting;
   } finally {
-    // reset latch after result so future calls can reconnect if needed
+    // allow future reconnect attempts if needed
     connecting = null;
   }
 }
 
-/**
- * Graceful disconnect (used on SIGINT/SIGTERM or in tests)
- */
+/** Graceful disconnect (use on SIGINT/SIGTERM or in tests) */
 export async function disconnectDB() {
   if (mongoose.connection.readyState === 0) return;
   await mongoose.disconnect();
   console.log('ℹ MongoDB disconnected cleanly');
 }
 
-/**
- * Quick health signal for /api/health
- */
+/** Quick health signal for /api/health or readiness checks */
 export function isDBHealthy() {
   return mongoose.connection.readyState === 1;
 }
 
-/* -------------------------- Graceful shutdown hooks ------------------------- */
+/* ----------------------- Graceful shutdown hooks ----------------------- */
 const shutdown = async (signal) => {
   try {
     console.log(`\n${signal} received. Shutting down…`);

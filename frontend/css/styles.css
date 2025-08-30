@@ -1,11 +1,11 @@
-:root{ 
+:root{
   --bg:#0f172a;      /* slate-900 */
   --card:#111827;    /* gray-900 */
   --muted:#94a3b8;   /* slate-400 */
   --text:#e5e7eb;    /* gray-200 */
-  --brand:#1d4ed8;   /* blue-700 */
-  --brand-2:#f59e0b; /* amber-500 */
-  --good:#10b981;    /* green-500 */
+  --brand:#FFD700;   /* gold */
+  --brand-2:#fbbf24; /* amber-400 (secondary gold) */
+  --good:#FFD700;    /* gold for positive actions */
   --bad:#ef4444;     /* red-500 */
 }
 
@@ -60,15 +60,17 @@ body{min-height:100vh;display:flex;flex-direction:column}
 /* Buttons */
 .btn{
   background:var(--brand);
-  border:0;color:#fff;
+  border:0;
+  color:#111827;
   padding:10px 14px;border-radius:10px;
   cursor:pointer;transition:.2s;
   display:inline-flex;align-items:center;gap:8px;
+  font-weight:600;
 }
 .btn:hover{filter:brightness(1.1)}
-.btn.ghost{background:transparent;border:1px solid #334155}
-.btn.danger{background:var(--bad)}
-.btn.good{background:var(--good)}
+.btn.ghost{background:transparent;border:1px solid var(--brand);color:var(--brand)}
+.btn.danger{background:var(--bad);color:#fff}
+.btn.good{background:var(--good);color:#111827}
 
 /* Button rows flex nicely on phones */
 .actions,
@@ -151,7 +153,7 @@ body{min-height:100vh;display:flex;flex-direction:column}
 /* Tables (cart) */
 .table{width:100%;border-collapse:collapse}
 .table th,.table td{padding:12px;border-bottom:1px solid #1f2937;text-align:left}
-.table th{color:#93c5fd}
+.table th{color:#fcd34d} /* softer gold for headings */
 
 /* Table wrapper to avoid screen-wide overflow */
 .table-wrap{

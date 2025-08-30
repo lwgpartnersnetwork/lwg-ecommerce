@@ -5,7 +5,7 @@ export const $  = (q, el = document) => el.querySelector(q);
 export const $$ = (q, el = document) => Array.from(el.querySelectorAll(q));
 
 // -------- Money / formatting helpers --------
-export const money = (n) => 'NLe ' + Number(n || 0).toLocaleString();
+export const money  = (n) => 'NLe ' + Number(n || 0).toLocaleString();
 export const iso    = (d) => { try { return new Date(d).toLocaleString(); } catch { return d ?? ''; } };
 export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 export const normalizePhone = (v) => {
@@ -16,6 +16,9 @@ export const normalizePhone = (v) => {
 
 // -------- Toast (with a11y + types) --------
 let toastTimer;
+/**
+ * Show a small toast. Types: 'info' | 'success' | 'error'
+ */
 export function toast(msg, type = 'info') {
   let el = document.querySelector('.toast');
   if (!el) {
@@ -32,9 +35,13 @@ export function toast(msg, type = 'info') {
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
     document.body.appendChild(el);
-    // attach simple “show” class behavior
+
     const style = document.createElement('style');
-    style.textContent = `.toast.show{opacity:1;transform:translateY(0)}.toast.success{border-color:#15803d}.toast.error{border-color:#b91c1c}`;
+    style.textContent = `
+      .toast.show{opacity:1;transform:translateY(0)}
+      .toast.success{border-color:#15803d}
+      .toast.error{border-color:#b91c1c}
+    `;
     document.head.appendChild(style);
   }
   el.textContent = String(msg);
@@ -49,7 +56,7 @@ export function toast(msg, type = 'info') {
 
 // (optional) render a header with cart count—kept lightweight
 export async function renderHeader() {
-  // If you add a nav, update cartCount here (example below).
+  // Example stub: update a cart badge if your layout has one
   // const count = await safeCartCount();
   // const badge = $('.cart-badge'); if (badge) badge.textContent = String(count);
 }
@@ -63,13 +70,13 @@ export const API = 'https://lwg-api.onrender.com';
 function withTimeout(ms, signal) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new DOMException('Timeout', 'AbortError')), ms);
-  const linked = new AbortController();
-  // If caller passed a signal, abort ours when theirs aborts
+
+  // If caller passed a signal, propagate abort to our controller
   if (signal) {
     if (signal.aborted) ctrl.abort(signal.reason);
     else signal.addEventListener('abort', () => ctrl.abort(signal.reason), { once: true });
   }
-  // return the controller we actually pass to fetch and a cancel to clear timer
+
   return { signal: ctrl.signal, cancel: () => clearTimeout(timer) };
 }
 
@@ -89,21 +96,27 @@ export async function apiFetch(path, {
   timeout = 15000,
   signal
 } = {}) {
-  const url = new URL(path.startsWith('http') ? path : (API.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '')));
+  const base = API.replace(/\/+$/, '');
+  const url = new URL(path.startsWith('http') ? path : (base + '/' + path.replace(/^\/+/, '')));
   if (query && typeof query === 'object') {
-    Object.entries(query).forEach(([k, v]) => {
+    for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
-    });
+    }
   }
 
   const { signal: sig, cancel } = withTimeout(timeout, signal);
+
+  // Only set JSON content-type if we’re actually sending a JSON body
+  const hdrs = { ...(headers || {}) };
+  const isJsonBody = body && typeof body === 'object' && !(body instanceof FormData);
+  if (isJsonBody && !hdrs['Content-Type']) hdrs['Content-Type'] = 'application/json';
 
   let resp, text = '', json = null;
   try {
     resp = await fetch(url.toString(), {
       method,
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: body && typeof body === 'object' && !(body instanceof FormData) ? JSON.stringify(body) : body,
+      headers: hdrs,
+      body: isJsonBody ? JSON.stringify(body) : body,
       cache: 'no-store',
       signal: sig
     });
@@ -118,7 +131,7 @@ export async function apiFetch(path, {
 
 /**
  * Best-effort API health check. Tolerates 404 (some stacks don’t expose /api/health).
- * Returns an object: { ok, status, latencyMs }
+ * Returns: { ok, status, latencyMs }
  */
 export async function checkApi() {
   const t0 = performance.now();
@@ -127,7 +140,7 @@ export async function checkApi() {
     const t1 = performance.now();
     const ok = r.ok || r.status === 404; // consider 404 as “reachable”
     return { ok, status: r.status || 0, latencyMs: Math.round(t1 - t0) };
-  } catch (e) {
+  } catch {
     return { ok: false, status: 0, latencyMs: Math.round(performance.now() - t0) };
   }
 }
@@ -146,7 +159,6 @@ export async function getJSON(path, options = {}) {
     err.body = r.text;
     throw err;
   }
-  // Some endpoints wrap payloads in { ok, ... }
   if (r.json && r.json.ok === false) {
     const err = new Error(r.json.error || r.json.message || 'Request failed');
     err.status = r.status || 400;
@@ -156,8 +168,6 @@ export async function getJSON(path, options = {}) {
   }
   return r.json;
 }
-
-// Example specific helpers (safe to remove if unused)
 
 /** Track an order (expects backend to accept ref + email|phone) */
 export async function trackOrder({ ref, email, phone }, { timeout } = {}) {

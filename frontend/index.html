@@ -5,47 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>LWG Store — Quality Products in Sierra Leone</title>
 
-<meta name="keywords" content="LWG Partners Network, Clothing Store, Logistics, Foundation, E-commerce, Sierra Leone, Global Impact">
-<meta name="robots" content="index, follow">
-
-  
-<link rel="icon" href="/favicon.ico">
-<meta name="description" content="LWG Partners Network Store — quality products with delivery across Sierra Leone.">
-<meta name="robots" content="index, follow">
-<meta property="og:title" content="LWG Store">
-<meta property="og:description" content="Shop the latest products. Delivery across Sierra Leone.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://www.lwgpartnersnetwork.com/">
-<meta property="og:image" content="https://www.lwgpartnersnetwork.com/og-image.jpg">
-
-<link rel="icon" type="image/png" sizes="32x32" href="frontend/images/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="frontend/images/favicon-64.png">
-<link rel="apple-touch-icon" href="frontend/images/logo-512.png">
-<meta property="og:image" content="frontend/images/og-image-1200x630.png">
-<meta property="og:title" content="LWG Store">
-<meta property="og:description" content="Shop with LWG Partners Network — Creating Impact Globally">
-
-  
-  <!-- SEO -->
-  <meta name="description"
-        content="Shop the LWG store. Reliable delivery across Sierra Leone, secure checkout, and great prices."/>
+  <!-- Primary SEO -->
+  <meta name="description" content="LWG Partners Network Store — quality products with reliable delivery across Sierra Leone."/>
+  <meta name="keywords" content="LWG Partners Network, LWG Store, Sierra Leone, E-commerce, Clothing, Electronics, Delivery, Foundation, Logistics"/>
+  <meta name="robots" content="index, follow"/>
   <link rel="canonical" href="https://www.lwgpartnersnetwork.com/"/>
+
+  <!-- Open Graph -->
   <meta property="og:type" content="website"/>
-  <meta property="og:title" content="LWG Store — Quality Products in Sierra Leone"/>
-  <meta property="og:description"
-        content="Explore featured products and enjoy fast, reliable delivery across Sierra Leone."/>
-  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/"/>
   <meta property="og:site_name" content="LWG Partners Network"/>
-  <!-- Inline SVG favicon (no file needed) -->
-  <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b1220"/><text x="50" y="62" font-size="62" text-anchor="middle" fill="%23c5d3f6" font-family="Segoe UI, Roboto, Arial">L</text></svg>'>
+  <meta property="og:title" content="LWG Store — Quality Products in Sierra Leone"/>
+  <meta property="og:description" content="Explore featured products and enjoy fast, reliable delivery across Sierra Leone."/>
+  <meta property="og:url" content="https://www.lwgpartnersnetwork.com/"/>
+  <meta property="og:image" content="/frontend/images/og-image-1200x630.png"/>
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="LWG Store — Quality Products in Sierra Leone"/>
+  <meta name="twitter:description" content="Shop with LWG Partners Network — Creating Impact Globally."/>
+  <meta name="twitter:image" content="/frontend/images/og-image-1200x630.png"/>
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/frontend/images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/frontend/images/favicon-64.png">
+  <link rel="apple-touch-icon" href="/frontend/images/logo-512.png">
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css"/>
   <style>
     :root{
       --bg:#0b1220;--line:#1f2937;--muted:#9ca3af;--text:#e5e7eb;
-      --pill-bg:#0f172a;--pill-border:#374151;--price:#ef4444;
-      --brand:#c5d3f6;
+      --pill-bg:#0f172a;--pill-border:#374151;--price:#ef4444;--brand:#c5d3f6;
     }
     *{box-sizing:border-box}
     body{background:var(--bg);color:var(--text);margin:0;font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
@@ -73,19 +63,37 @@
     .footer{border-top:1px solid var(--line);padding:16px;text-align:center;color:var(--muted)}
     .empty{color:var(--muted);margin-top:14px}
 
-    /* simple input */
     input.input{background:#0f172a;border:1px solid #374151;border-radius:10px;color:#e5e7eb;padding:10px 12px;outline:none}
     input.input::placeholder{color:#6b7280}
 
-    /* skeletons */
     .skeleton{position:relative;overflow:hidden;background:#111827;border-radius:16px;border:1px solid #1f2937;height:260px}
     .skeleton::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
       background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);
       animation:shimmer 1.2s infinite}
     @keyframes shimmer{100%{transform:translateX(100%)}}
   </style>
+
+  <!-- JSON-LD (Organization + Website) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "LWG Partners Network",
+    "url": "https://www.lwgpartnersnetwork.com/",
+    "logo": "https://www.lwgpartnersnetwork.com/frontend/images/logo-512.png",
+    "sameAs": []
+  }
+  </script>
 </head>
 <body>
+  <!-- Config for API base -->
+  <script>
+    // In production, API is your Render backend; locally it uses localhost
+    window.__LWG_API__ = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? 'http://localhost:5001'
+      : 'https://lwg-api.onrender.com';
+  </script>
+
   <!-- NAV -->
   <nav class="nav" aria-label="Main navigation">
     <div class="brand">
@@ -96,7 +104,7 @@
     </div>
     <div class="row">
       <a href="cart.html" class="btn">Cart (<span id="cartCount">0</span>)</a>
-      <a href="order-tracking.html" class="muted">tracking</a>
+      <a href="order-tracking.html" class="muted">Tracking</a>
     </div>
   </nav>
 
@@ -125,106 +133,139 @@
     © <span id="y"></span> LWG Partners Network — Creating Impact Globally
   </footer>
 
-<!-- put this near the top of <body> or inside <head> -->
-<script>
-  window.__LWG_API__ = 'https://lwg-api.onrender.com';
-</script>
+  <!-- App script (single source of truth for fetching) -->
+  <script type="module">
+    // Single API base (from window.__LWG_API__)
+    const API_BASE = window.__LWG_API__;
 
-  
-<script>
-(function(){
-  const PROD_API = 'https://lwg-api.onrender.com';
-  const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-    ? 'http://localhost:5001'
-    : PROD_API;
+    const $ = (s) => document.querySelector(s);
+    const money = (n) => {
+      const num = Number(n||0);
+      try { return 'NLe ' + num.toLocaleString(); } catch { return 'NLe ' + num; }
+    };
+    const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
-  const $ = (s) => document.querySelector(s);
-  const money = (n) => 'NLe ' + (Number(n||0)).toLocaleString();
-  const esc = (s='') => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-
-  // cart count
-  function cartCount(){
-    try { return JSON.parse(localStorage.getItem('lwg_cart')||'[]').reduce((s,i)=>s+(i.qty||0),0); }
-    catch{ return 0; }
-  }
-  function updateCount(){ $('#cartCount').textContent = cartCount(); }
-
-  /** Fetch product list */
-  async function fetchProducts({ q='', category='', min, max, page=1, pageSize=12 } = {}){
-    const qs = new URLSearchParams();
-    if (q) qs.set('q', q);
-    if (category) qs.set('category', category);
-    if (min) qs.set('min', min);
-    if (max) qs.set('max', max);
-    qs.set('page', page);
-    qs.set('pageSize', pageSize);
-
-    const url = `${API_BASE}/api/products?${qs.toString()}`;
-    const res = await fetch(url, { headers:{'Accept':'application/json'}});
-    if (!res.ok) throw new Error('HTTP '+res.status);
-
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error||'Invalid response');
-    return { products: data.products||[], total: data.total||0 };
-  }
-
-  const grid = $('#grid');
-  const empty = $('#empty');
-
-  function productCard(p){
-    const el = document.createElement('article');
-    el.className = 'card';
-    const img = esc(p.image || (p.images && p.images[0]) || '');
-    const title = esc(p.title || 'Product');
-    el.innerHTML = `
-      <img class="thumb" src="${img}" alt="${title}"
-        onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
-      <div class="body">
-        <div class="title">${title}</div>
-        <div class="pill">Sierra Leone delivery</div>
-        <div class="row"><div class="price">${money(p.price)}</div></div>
-      </div>`;
-    el.addEventListener('click',()=>{
-      const idOrSlug = p.slug || p._id || p.id;
-      if(idOrSlug) location.href = 'product.html?id='+encodeURIComponent(idOrSlug);
-    });
-    return el;
-  }
-
-  async function render({ q='', page=1, pageSize=12 }={}){
-    grid.innerHTML = '';
-    empty.style.display='none';
-    try{
-      const {products,total} = await fetchProducts({q,page,pageSize});
-      if(!products.length){
-        empty.style.display='block';
-      }else{
-        products.forEach(p=>grid.appendChild(productCard(p)));
-      }
-    }catch(e){
-      empty.textContent = 'Failed to load products. Please retry.';
-      empty.style.display='block';
-      console.error(e);
+    // cart count (localStorage)
+    function cartCount(){
+      try { return JSON.parse(localStorage.getItem('lwg_cart')||'[]').reduce((s,i)=>s+(i.qty||0),0); }
+      catch { return 0; }
     }
-  }
+    function updateCount(){ $('#cartCount').textContent = cartCount(); }
 
-  // search
-  $('#searchForm').addEventListener('submit', e=>{
-    e.preventDefault();
-    render({ q:$('#q').value.trim(), page:1, pageSize:12 });
-  });
+    // Fetch product list
+    async function fetchProducts({ q='', category='', min, max, page=1, pageSize=12 } = {}){
+      const qs = new URLSearchParams();
+      if (q) qs.set('q', q);
+      if (category) qs.set('category', category);
+      if (min) qs.set('min', min);
+      if (max) qs.set('max', max);
+      qs.set('page', page);
+      qs.set('pageSize', pageSize);
 
-  // boot
-  $('#y').textContent=new Date().getFullYear();
-  updateCount();
-  render();
-})();
-</script>
+      const url = `${API_BASE}/api/products?${qs.toString()}`;
+      const res = await fetch(url, { headers:{'Accept':'application/json'}, cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP '+res.status);
+
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error||'Invalid response');
+      return { products: data.products||[], total: data.total||0 };
+    }
+
+    const grid = $('#grid');
+    const empty = $('#empty');
+    const pager = $('#pager');
+    const prevBtn = $('#prev');
+    const nextBtn = $('#next');
+    const pageNote = $('#pageNote');
+    let state = { q:'', page:1, pageSize:12, total:0 };
+
+    function productCard(p){
+      const el = document.createElement('article');
+      el.className = 'card';
+      const img = esc(p.image || (Array.isArray(p.images) && p.images[0]) || '');
+      const title = esc(p.title || 'Product');
+      const price = p.price || 0;
+
+      el.innerHTML = `
+        <img class="thumb" src="${img}" alt="${title}"
+          onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
+        <div class="body">
+          <div class="title">${title}</div>
+          <div class="pill">Sierra Leone delivery</div>
+          <div class="row"><div class="price">${money(price)}</div></div>
+        </div>
+      `;
+      el.addEventListener('click', () => {
+        const idOrSlug = p.slug || p._id || p.id;
+        if (idOrSlug) location.href = 'product.html?id=' + encodeURIComponent(idOrSlug);
+      });
+      return el;
+    }
+
+    function setupPager({ total, page, pageSize, q }){
+      state = { total, page, pageSize, q };
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      if (pages <= 1){
+        pager.style.display = 'none';
+        return;
+      }
+      pageNote.textContent = `Page ${page} of ${pages}`;
+      prevBtn.disabled = (page <= 1);
+      nextBtn.disabled = (page >= pages);
+      pager.style.display = 'flex';
+    }
+
+    async function render({ q='', page=1, pageSize=12 } = {}){
+      grid.innerHTML = '';
+      empty.style.display = 'none';
+
+      // quick skeletons
+      for (let i=0;i<pageSize;i++){
+        const sk = document.createElement('div');
+        sk.className = 'skeleton';
+        grid.appendChild(sk);
+      }
+
+      try{
+        const { products, total } = await fetchProducts({ q, page, pageSize });
+        grid.innerHTML = '';
+        if (!products.length){
+          empty.textContent = 'No products available yet. Please check back soon.';
+          empty.style.display = 'block';
+        } else {
+          products.forEach(p => grid.appendChild(productCard(p)));
+        }
+        setupPager({ total, page, pageSize, q });
+      }catch(err){
+        grid.innerHTML = '';
+        empty.textContent = 'Failed to load products. Please retry.';
+        empty.style.display = 'block';
+        console.error('Products fetch error:', err);
+      }
+    }
+
+    // pagination
+    prevBtn?.addEventListener('click', () => {
+      if (state.page > 1) render({ q: state.q, page: state.page - 1, pageSize: state.pageSize });
+    });
+    nextBtn?.addEventListener('click', () => {
+      const pages = Math.max(1, Math.ceil(state.total / state.pageSize));
+      if (state.page < pages) render({ q: state.q, page: state.page + 1, pageSize: state.pageSize });
+    });
+
+    // search
+    const searchForm = $('#searchForm');
+    const qInput = $('#q');
+    searchForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = (qInput.value || '').trim();
+      render({ q, page:1, pageSize:12 });
+    });
+
+    // boot
+    $('#y').textContent = new Date().getFullYear();
+    updateCount();
+    render();
+  </script>
 </body>
 </html>
-
-
-
-
-
-

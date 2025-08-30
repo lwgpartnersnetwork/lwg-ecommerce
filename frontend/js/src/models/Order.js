@@ -3,12 +3,18 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
+/* -------------------------------------------------------------------------- */
+/*                                 Constants                                  */
+/* -------------------------------------------------------------------------- */
 const ALLOWED_STATUSES = ['New', 'Processing', 'Shipped', 'Completed', 'Cancelled'];
 const PAYMENT_STATES   = ['Pending', 'Paid', 'Failed', 'Refunded'];
 
+/* -------------------------------------------------------------------------- */
+/*                                   Items                                    */
+/* -------------------------------------------------------------------------- */
 const itemSchema = new Schema(
   {
-    productId: { type: String, trim: true },
+    productId: { type: String, trim: true },                // optional external id
     title:     { type: String, trim: true, required: true },
     price:     { type: Number, min: 0, default: 0 },
     qty:       { type: Number, min: 1, default: 1 },
@@ -16,6 +22,9 @@ const itemSchema = new Schema(
   { _id: false }
 );
 
+/* -------------------------------------------------------------------------- */
+/*                                   Orders                                   */
+/* -------------------------------------------------------------------------- */
 const orderSchema = new Schema(
   {
     ref: { type: String, required: true, unique: true, index: true, trim: true },
@@ -28,47 +37,55 @@ const orderSchema = new Schema(
       },
     },
 
-    // money fields
+    // totals
     subtotal:     { type: Number, min: 0, default: 0 },
     deliveryZone: { type: String, trim: true },
     deliveryFee:  { type: Number, min: 0, default: 0 },
     grandTotal:   { type: Number, min: 0, default: 0 },
 
-    // payment state used by the tracker UI
+    // payment state (admin + tracker)
     paymentStatus: { type: String, enum: PAYMENT_STATES, default: 'Pending' },
 
-    // customer / checkout info
+    // checkout info
     info: {
       name:    { type: String, trim: true },
       phone:   { type: String, trim: true },
       email:   { type: String, trim: true, lowercase: true },
       address: { type: String, trim: true },
-      payment: { type: String, trim: true },       // e.g., "cash", "orange", etc.
-      payment_details: { type: Schema.Types.Mixed } // gateway metadata, refs, etc.
+      deliveryZone: { type: String, trim: true },    // duplicate for quick filter
+      payment: { type: String, trim: true },         // e.g., "Orange Money"
+      payment_details: { type: Schema.Types.Mixed }, // gateway metadata / proof
+      note:    { type: String, trim: true },         // optional note from admin/customer
     },
 
-    // lifecycle status (includes "Shipped" to match UI)
+    // lifecycle status
     status: { type: String, enum: ALLOWED_STATUSES, default: 'New', index: true },
   },
   { timestamps: true }
 );
 
-/* ------------------------------- normalizers ------------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                               Normalizations                               */
+/* -------------------------------------------------------------------------- */
 orderSchema.pre('save', function normalizeRef(next) {
   if (this.ref) this.ref = String(this.ref).trim().toUpperCase();
   next();
 });
 
-/* --------------------------------- indexes -------------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                                   Indexes                                  */
+/* -------------------------------------------------------------------------- */
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ 'info.email': 1 });
 orderSchema.index({ 'info.phone': 1 });
+orderSchema.index({ ref: 1 });
 
-/* ----------------------------- clean JSON shape ---------------------------- */
+/* -------------------------------------------------------------------------- */
+/*                                JSON Cleanup                                */
+/* -------------------------------------------------------------------------- */
 orderSchema.set('toJSON', {
   versionKey: false,
   transform(_doc, ret) {
-    // expose id (string) and keep _id hidden for a clean API
     ret.id = ret._id?.toString();
     delete ret._id;
     return ret;
